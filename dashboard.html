@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - Nagaria Textiles</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+</head>
+<body class="bg-gray-100">
+
+<!-- Top Navigation -->
+<nav class="bg-blue-600 text-white px-6 py-3 flex items-center justify-between">
+  <div class="flex items-center gap-3">
+    <span class="text-2xl font-bold">raiseaticket</span>
+    <span class="text-sm">|</span>
+    <span class="font-medium">Nagaria Textiles</span>
+  </div>
+
+  <div class="flex items-center gap-8 text-sm">
+    <a href="#" class="flex items-center gap-1 hover:underline"><i class="fas fa-home"></i> Dashboard</a>
+    <a href="#" class="flex items-center gap-1 hover:underline"><i class="fas fa-plus"></i> Raise a ticket</a>
+    <a href="#" class="flex items-center gap-1 hover:underline"><i class="fas fa-ticket-alt"></i> Tickets</a>
+    <a href="#" class="flex items-center gap-1 hover:underline"><i class="fas fa-chart-bar"></i> Reports</a>
+    <a href="#" class="flex items-center gap-1 hover:underline"><i class="fas fa-book"></i> Resources</a>
+    <a href="#" class="flex items-center gap-1 hover:underline"><i class="fas fa-cog"></i> Settings</a>
+  </div>
+
+  <div class="flex items-center gap-4">
+    <span id="user-info" class="text-sm"></span>
+    <button onclick="logout()" class="bg-white text-blue-600 px-5 py-2 rounded-lg text-sm hover:bg-gray-100">Logout</button>
+  </div>
+</nav>
+
+<div class="max-w-7xl mx-auto p-6">
+
+  <!-- Stats Row -->
+  <div class="grid grid-cols-4 md:grid-cols-8 gap-4 mb-8">
+    <div class="bg-white p-4 rounded-xl shadow text-center">
+      <p class="text-gray-500 text-sm">Received</p>
+      <p id="received" class="text-3xl font-bold text-blue-600">0</p>
+    </div>
+    <div class="bg-white p-4 rounded-xl shadow text-center">
+      <p class="text-gray-500 text-sm">Resolved</p>
+      <p id="resolved" class="text-3xl font-bold text-green-600">0</p>
+    </div>
+    <div class="bg-white p-4 rounded-xl shadow text-center">
+      <p class="text-gray-500 text-sm">Unresolved</p>
+      <p id="unresolved" class="text-3xl font-bold text-orange-600">0</p>
+    </div>
+    <div class="bg-white p-4 rounded-xl shadow text-center">
+      <p class="text-gray-500 text-sm">Unassigned</p>
+      <p id="unassigned" class="text-3xl font-bold">0</p>
+    </div>
+    <div class="bg-white p-4 rounded-xl shadow text-center">
+      <p class="text-gray-500 text-sm">Pending</p>
+      <p id="pending" class="text-3xl font-bold">0</p>
+    </div>
+    <div class="bg-white p-4 rounded-xl shadow text-center">
+      <p class="text-red-600 text-sm">Overdue</p>
+      <p id="overdue" class="text-3xl font-bold text-red-600">0</p>
+    </div>
+    <div class="bg-white p-4 rounded-xl shadow text-center">
+      <p class="text-gray-500 text-sm">Due Today</p>
+      <p id="due-today" class="text-3xl font-bold">0</p>
+    </div>
+    <div class="bg-white p-4 rounded-xl shadow text-center">
+      <p class="text-gray-500 text-sm">Due Tomorrow</p>
+      <p id="due-tomorrow" class="text-3xl font-bold">0</p>
+    </div>
+  </div>
+
+  <!-- Received and Resolved Section -->
+  <div class="bg-white rounded-xl shadow p-6">
+    <h3 class="text-lg font-semibold mb-6">Received and Resolved</h3>
+    
+    <div class="grid grid-cols-2 md:grid-cols-6 gap-6">
+      <div>
+        <p class="text-sm text-gray-500">Received</p>
+        <p id="total-received" class="text-4xl font-bold">0</p>
+      </div>
+      <div>
+        <p class="text-sm text-gray-500">Resolved In SLA</p>
+        <p id="resolved-in-sla" class="text-4xl font-bold text-green-600">0</p>
+      </div>
+      <div>
+        <p class="text-sm text-gray-500">Resolved Outside SLA</p>
+        <p id="resolved-outside-sla" class="text-4xl font-bold text-red-600">0</p>
+      </div>
+      <div>
+        <p class="text-sm text-gray-500">Avg. Resolution Time</p>
+        <p id="avg-time" class="text-4xl font-bold">0 min</p>
+      </div>
+      <div>
+        <p class="text-sm text-gray-500">Min. Resolution Time</p>
+        <p id="min-time" class="text-4xl font-bold">0 min</p>
+      </div>
+      <div>
+        <p class="text-sm text-gray-500">Max. Resolution Time</p>
+        <p id="max-time" class="text-4xl font-bold">0 min</p>
+      </div>
+    </div>
+
+    <!-- Chart Area -->
+    <div class="mt-8 h-80 bg-gray-100 rounded-2xl flex items-center justify-center border border-dashed border-gray-300">
+      <p class="text-gray-400">Chart: Received vs Resolved (will be added later)</p>
+    </div>
+  </div>
+</div>
+
+<script>
+async function loadDashboard() {
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  if (user.username) {
+    document.getElementById('user-info').textContent = `${user.username} (${user.role})`;
+  }
+
+  try {
+    const res = await fetch('http://127.0.0.1:5000/api/dashboard/stats');
+    if (res.ok) {
+      const stats = await res.json();
+      // Fill all stats
+      document.getElementById('received').textContent = stats.received || 0;
+      document.getElementById('resolved').textContent = stats.resolved || 0;
+      document.getElementById('unresolved').textContent = stats.unresolved || 0;
+      document.getElementById('unassigned').textContent = stats.unassigned || 0;
+      document.getElementById('pending').textContent = stats.pending || 0;
+      document.getElementById('overdue').textContent = stats.overdue || 0;
+      document.getElementById('due-today').textContent = stats.due_today || 0;
+      document.getElementById('due-tomorrow').textContent = stats.due_tomorrow || 0;
+
+      document.getElementById('total-received').textContent = stats.received || 0;
+      document.getElementById('resolved-in-sla').textContent = stats.resolved_in_sla || 0;
+      document.getElementById('resolved-outside-sla').textContent = stats.resolved_outside_sla || 0;
+      document.getElementById('avg-time').textContent = stats.avg_resolution_time || "0 min";
+      document.getElementById('min-time').textContent = stats.min_resolution_time || "0 min";
+      document.getElementById('max-time').textContent = stats.max_resolution_time || "0 min";
+    }
+  } catch (e) {
+    console.log("Stats loading failed");
+  }
+}
+
+function logout() {
+  localStorage.clear();
+  window.location.href = '/';
+}
+
+loadDashboard();
+</script>
+</body>
+</html>
