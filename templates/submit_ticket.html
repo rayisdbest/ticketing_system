@@ -1,0 +1,51 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="card shadow-sm mt-4">
+    <div class="card-header bg-primary text-white">
+        <h5>Raise a Ticket</h5>
+    </div>
+    <div class="card-body">
+        <form method="POST" enctype="multipart/form-data">
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="mb-3">
+                        <label>Category</label>
+                        <select name="category" class="form-select">
+                            <option>Problem</option>
+                            <option>Request</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label>Priority</label>
+                        <select name="priority" class="form-select">
+                            <option>Low</option>
+                            <option>Medium</option>
+                            <option>High</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label>Group</label>
+                        <input type="text" name="group" class="form-control">
+                    </div>
+                </div>
+
+                <div class="col-md-8">
+                    <div class="mb-3">
+                        <label>Subject *</label>
+                        <input type="text" name="subject" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label>Description (Optional)</label>
+                        <textarea name="description" class="form-control" rows="8"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label>Attach file</label>
+                        <input type="file" name="file" class="form-control">
+                    </div>
+                    <button type="submit" class="btn btn-primary">Submit a ticket</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
