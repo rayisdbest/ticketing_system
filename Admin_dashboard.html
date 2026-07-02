@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - Nagaria Textiles</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-[#f0f4f7] font-sans antialiased relative">
+
+<div class="fixed right-0 top-1/3 bg-[#71cc1e] text-white px-2 py-3 rounded-l-md font-medium text-xs cursor-pointer shadow-md flex flex-col items-center gap-1 z-50">
+  <i class="fas fa-book-open"></i>
+  <span class="[writing-mode:vertical-lr]">Learn more</span>
+</div>
+
+<nav class="bg-[#00a3d1] text-white px-6 py-3 flex items-center justify-between shadow-sm">
+  <div class="flex items-center gap-2">
+    <i class="fa-solid fa-cloud text-xl opacity-90"></i>
+    <span class="text-xl font-semibold tracking-tight">raiseaticket</span>
+    <span class="text-white/60 mx-1">|</span>
+    <span class="text-lg font-light tracking-wide">Nagaria Textiles</span>
+  </div>
+
+  <div class="flex items-center gap-6 text-[14px]">
+    <a href="#" class="text-white hover:text-white/80"><i class="fas fa-search opacity-90"></i></a>
+    <a href="#" class="flex items-center gap-1 bg-[#0089b0] px-3 py-1.5 rounded font-medium"><i class="fas fa-home"></i> Dashboard</a>
+    <a href="#" class="flex items-center gap-1 hover:text-white/80"><i class="fas fa-plus"></i> Raise a ticket</a>
+    <a href="#" class="flex items-center gap-1 hover:text-white/80"><i class="fas fa-ticket-alt"></i> Tickets</a>
+    <a href="#" class="flex items-center gap-1 hover:text-white/80"><i class="fas fa-chart-bar"></i> Reports</a>
+    <a href="#" class="flex items-center gap-1 hover:text-white/80"><i class="fas fa-bookmark"></i> Resources</a>
+    <a href="#" class="flex items-center gap-1 hover:text-white/80"><i class="fas fa-cog"></i> Settings</a>
+    <span class="text-white/40">|</span>
+    <a href="#" class="text-sm font-medium hover:underline">IT Support</a>
+    <button onclick="logout()" class="w-7 h-7 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center text-xs"><i class="fas fa-user"></i></button>
+  </div>
+</nav>
+
+<div class="max-w-7xl mx-auto p-5">
+
+  <div class="grid grid-cols-12 gap-4 mb-4">
+    <div class="col-span-6 bg-white rounded border border-gray-200 shadow-sm grid grid-cols-3 divide-x divide-gray-100">
+      <div class="p-4 text-center">
+        <p class="text-gray-400 text-xs font-medium uppercase tracking-wider mb-1">Received</p>
+        <p id="received" class="text-2xl font-semibold text-gray-500">0</p>
+      </div>
+      <div class="p-4 text-center">
+        <p class="text-gray-400 text-xs font-medium uppercase tracking-wider mb-1">Resolved</p>
+        <p id="resolved" class="text-2xl font-semibold text-gray-500">0</p>
+      </div>
+      <div class="p-4 text-center">
+        <p class="text-gray-400 text-xs font-medium uppercase tracking-wider mb-1">Unresolved</p>
+        <p id="unresolved" class="text-2xl font-semibold text-gray-500">0</p>
+      </div>
+    </div>
+
+    <div class="col-span-3 bg-white rounded border border-gray-200 shadow-sm grid grid-cols-3 divide-x divide-gray-100">
+      <div class="p-4 text-center">
+        <p class="text-gray-400 text-xs font-medium uppercase tracking-wider mb-1">Unassigned</p>
+        <p id="unassigned" class="text-2xl font-semibold text-gray-500">0</p>
+      </div>
+      <div class="p-4 text-center">
+        <p class="text-gray-400 text-xs font-medium uppercase tracking-wider mb-1">Pending</p>
+        <p id="pending" class="text-2xl font-semibold text-gray-500">0</p>
+      </div>
+      <div class="p-4 text-center">
+        <p class="text-red-500 text-xs font-medium uppercase tracking-wider mb-1">Overdue</p>
+        <p id="overdue" class="text-2xl font-semibold text-red-500">0</p>
+      </div>
+    </div>
+
+    <div class="col-span-3 flex gap-3 items-start">
+      <div class="flex-1 bg-white rounded border border-gray-200 shadow-sm grid grid-cols-2 divide-x divide-gray-100">
+        <div class="p-4 text-center">
+          <p class="text-gray-400 text-xs font-medium uppercase tracking-wider mb-1">Due Today</p>
+          <p id="due-today" class="text-2xl font-semibold text-gray-500">0</p>
+        </div>
+        <div class="p-4 text-center">
+          <p class="text-gray-400 text-xs font-medium uppercase tracking-wider mb-1">Due Tomorrow</p>
+          <p id="due-tomorrow" class="text-2xl font-semibold text-gray-500">0</p>
+        </div>
+      </div>
+      <button class="bg-white p-2.5 rounded border border-gray-200 text-gray-400 hover:text-gray-600 shadow-sm"><i class="fas fa-eye text-sm"></i></button>
+    </div>
+  </div>
+
+  <div class="flex items-center justify-between mb-5">
+    <div class="flex items-center gap-2">
+      <div class="bg-white px-3 py-1.5 rounded border border-gray-200 shadow-sm text-xs text-gray-600 flex items-center gap-2 cursor-pointer">
+        <i class="far fa-calendar-alt text-gray-400"></i>
+        <span>June 23, 2026 - June 23, 2026</span>
+        <i class="fas fa-caret-down text-gray-400"></i>
+      </div>
+      <button class="bg-[#00a3d1] text-white px-3 py-1.5 rounded text-xs font-medium flex items-center gap-1.5 hover:bg-[#0089b0] shadow-sm">
+        <i class="fas fa-share-alt"></i> Share Dashboard
+      </button>
+    </div>
+
+    <div class="flex items-center gap-2">
+      <div class="bg-white rounded border border-gray-200 p-0.5 flex shadow-sm">
+        <button class="bg-[#00a3d1] text-white px-3 py-1.5 rounded-sm text-xs font-medium">Tickets Overview</button>
+        <button class="text-gray-500 hover:text-gray-700 px-3 py-1.5 text-xs font-medium">Agents Overview</button>
+      </div>
+      <div class="bg-white px-3 py-1.5 rounded border border-gray-200 shadow-sm text-xs text-gray-600 flex items-center gap-2 cursor-pointer">
+        <span>All Groups</span>
+        <i class="fas fa-caret-down text-gray-400"></i>
+      </div>
+      <button onclick="loadDashboard()" class="bg-white p-2 rounded border border-gray-200 text-gray-500 hover:text-gray-700 shadow-sm"><i class="fas fa-sync-alt text-xs"></i></button>
+    </div>
+  </div>
+
+  <div class="bg-white rounded border border-gray-200 shadow-sm p-5 relative">
+    <div class="flex items-center justify-between mb-4 border-b border-gray-100 pb-3">
+      <h3 class="text-sm font-semibold text-gray-700">Received and Resolved</h3>
+      <div class="flex items-center gap-1 text-xs text-gray-400">
+        <button id="btnBar" onclick="toggleChartType('bar')" class="px-2 py-1 bg-sky-50 text-[#00a3d1] border border-sky-200 rounded-sm cursor-pointer"><i class="fas fa-chart-bar"></i></button>
+        <button id="btnLine" onclick="toggleChartType('line')" class="px-2 py-1 hover:text-gray-600 border border-transparent rounded-sm cursor-pointer"><i class="fas fa-chart-line"></i></button>
+      </div>
+    </div>
+    
+    <div class="grid grid-cols-6 gap-3 mb-6">
+      <div class="bg-[#f8fafc] border border-gray-200 rounded p-3">
+        <p class="text-[11px] font-medium text-gray-400 uppercase mb-1">Received</p>
+        <p id="total-received" class="text-xl font-bold text-gray-700">0</p>
+      </div>
+      <div class="bg-[#f8fafc] border border-gray-200 rounded p-3">
+        <p class="text-[11px] font-medium text-gray-400 uppercase mb-1">Resolved In SLA</p>
+        <p id="resolved-in-sla" class="text-xl font-bold text-gray-700">0</p>
+      </div>
+      <div class="bg-[#f8fafc] border border-gray-200 rounded p-3">
+        <p class="text-[11px] font-medium text-gray-400 uppercase mb-1">Resolved Outside SLA</p>
+        <p id="resolved-outside-sla" class="text-xl font-bold text-gray-700">0</p>
+      </div>
+      <div class="bg-[#f8fafc] border border-gray-200 rounded p-3">
+        <p class="text-[11px] font-medium text-gray-400 uppercase mb-1">Avg. Resolution Time</p>
+        <p id="avg-time" class="text-xl font-bold text-gray-700">0 min</p>
+      </div>
+      <div class="bg-[#f8fafc] border border-gray-200 rounded p-3">
+        <p class="text-[11px] font-medium text-gray-400 uppercase mb-1">Min. Resolution Time</p>
+        <p id="min-time" class="text-xl font-bold text-gray-700">0 min</p>
+      </div>
+      <div class="bg-[#f8fafc] border border-gray-200 rounded p-3">
+        <p class="text-[11px] font-medium text-gray-400 uppercase mb-1">Max. Resolution Time</p>
+        <p id="max-time" class="text-xl font-bold text-gray-700">0 min</p>
+      </div>
+    </div>
+
+    <div class="h-64 relative">
+      <canvas id="ticketsChart"></canvas>
+    </div>
+    
+    <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+      <p id="user-info" class="text-xs text-gray-400 font-normal tracking-wide"></p>
+    </div>
+  </div>
+</div>
+
+<script>
+let ticketsChart = null;
+let currentChartMode = 'bar'; 
+
+// Global cache structures initialization 
+let cachedStats = {
+  received: 0, resolved: 0, unresolved: 0, unassigned: 0, pending: 0, overdue: 0, due_today: 0, due_tomorrow: 0,
+  resolved_in_sla: 0, resolved_outside_sla: 0, avg_resolution_time: "0 min", min_resolution_time: "0 min", max_resolution_time: "0 min",
+  hourly_received: Array(24).fill(0),
+  hourly_resolved_in_sla: Array(24).fill(0),
+  hourly_resolved_outside_sla: Array(24).fill(0)
+};
+
+function updateChartDisplay() {
+  const ctx = document.getElementById('ticketsChart').getContext('2d');
+  
+  if (ticketsChart) {
+    ticketsChart.destroy();
+  }
+  
+  const isLine = currentChartMode === 'line';
+
+  ticketsChart = new Chart(ctx, {
+    type: currentChartMode,
+    data: {
+      labels: Array.from({length: 24}, (_, i) => i.toString()),
+      datasets: [
+        {
+          label: 'Received',
+          data: cachedStats.hourly_received || Array(24).fill(0),
+          backgroundColor: '#00a3d1',
+          borderColor: '#00a3d1',
+          borderWidth: isLine ? 2.5 : 0,
+          fill: false,
+          tension: isLine ? 0.35 : 0, 
+          pointRadius: isLine ? 3 : 0,
+          barPercentage: 0.6
+        },
+        {
+          label: 'Resolved within SLA',
+          data: cachedStats.hourly_resolved_in_sla || Array(24).fill(0),
+          backgroundColor: '#22c55e',
+          borderColor: '#22c55e',
+          borderWidth: isLine ? 2.5 : 0,
+          fill: false,
+          tension: isLine ? 0.35 : 0,
+          pointRadius: isLine ? 3 : 0,
+          barPercentage: 0.6
+        },
+        {
+          label: 'Resolved outside SLA',
+          data: cachedStats.hourly_resolved_outside_sla || Array(24).fill(0),
+          backgroundColor: '#ef4444',
+          borderColor: '#ef4444',
+          borderWidth: isLine ? 2.5 : 0,
+          fill: false,
+          tension: isLine ? 0.35 : 0,
+          pointRadius: isLine ? 3 : 0,
+          barPercentage: 0.6
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'top',
+          labels: { boxWidth: 12, font: { size: 11 } }
+        }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 10 } } },
+        y: { beginAtZero: true, ticks: { stepSize: 1, font: { size: 10 } } }
+      }
+    }
+  });
+}
+
+function toggleChartType(mode) {
+  currentChartMode = mode;
+  
+  const btnBar = document.getElementById('btnBar');
+  const btnLine = document.getElementById('btnLine');
+  
+  if (mode === 'bar') {
+    btnBar.className = "px-2 py-1 bg-sky-50 text-[#00a3d1] border border-sky-200 rounded-sm cursor-pointer";
+    btnLine.className = "px-2 py-1 hover:text-gray-600 border border-transparent rounded-sm cursor-pointer";
+  } else {
+    btnBar.className = "px-2 py-1 hover:text-gray-600 border border-transparent rounded-sm cursor-pointer";
+    btnLine.className = "px-2 py-1 bg-sky-50 text-[#00a3d1] border border-sky-200 rounded-sm cursor-pointer";
+  }
+  
+  updateChartDisplay();
+}
+
+async function loadDashboard() {
+  const token = localStorage.getItem('token');
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+
+  if (user.username) {
+    document.getElementById('user-info').textContent = `${user.username} (${user.role})`;
+  }
+
+  if (!token) {
+    window.location.href = '/';
+    return;
+  }
+
+  try {
+    const res = await fetch('http://127.0.0.1:5000/api/dashboard/stats', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (res.ok) {
+      const stats = await res.json();
+      cachedStats = stats;
+
+      // Update Top Row Counters
+      document.getElementById('received').textContent = stats.received ?? 0;
+      document.getElementById('resolved').textContent = stats.resolved ?? 0;
+      document.getElementById('unresolved').textContent = stats.unresolved ?? 0;
+      document.getElementById('unassigned').textContent = stats.unassigned ?? 0;
+      document.getElementById('pending').textContent = stats.pending ?? 0;
+      document.getElementById('overdue').textContent = stats.overdue ?? 0;
+      document.getElementById('due-today').textContent = stats.due_today ?? 0;
+      document.getElementById('due-tomorrow').textContent = stats.due_tomorrow ?? 0;
+
+      // Update Middle Row Grid Counters
+      document.getElementById('total-received').textContent = stats.received ?? 0;
+      document.getElementById('resolved-in-sla').textContent = stats.resolved_in_sla ?? 0;
+      document.getElementById('resolved-outside-sla').textContent = stats.resolved_outside_sla ?? 0;
+      document.getElementById('avg-time').textContent = stats.avg_resolution_time ?? "0 min";
+      document.getElementById('min-time').textContent = stats.min_resolution_time ?? "0 min";
+      document.getElementById('max-time').textContent = stats.max_resolution_time ?? "0 min";
+
+      updateChartDisplay();
+    } else if (res.status === 401) {
+      window.location.href = '/';
+    }
+  } catch (e) {
+    console.log("Could not load stats from backend");
+    updateChartDisplay(); 
+  }
+}
+
+function logout() {
+  localStorage.clear();
+  window.location.href = '/';
+}
+
+loadDashboard();
+</script>
+</body>
+</html>

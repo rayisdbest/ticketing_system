@@ -1,9 +1,11 @@
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 
+# Connect to database
 connection = sqlite3.connect("tickets.db")
 cursor = connection.cursor()
 
+# Create table
 create_table_sql = """
 CREATE TABLE IF NOT EXISTS tickets (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

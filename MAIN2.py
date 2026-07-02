@@ -79,14 +79,15 @@ def send_otp_email(email, otp):
         return False
 
 
-# ====================== DASHBOARD STATS (Full - Matching Screenshot) ======================
+# ====================== DASHBOARD STATS (Updated for Chart) ======================
+# ====================== DASHBOARD STATS (Fully Dynamic with Graphs) ======================
 @app.route('/api/dashboard/stats', methods=['GET'])
 @token_required
 def dashboard_stats(current_user):
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # Basic Counts
+    # 1. Basic Box Counts
     cursor.execute("SELECT COUNT(*) as total FROM tickets")
     total = cursor.fetchone()['total']
 
@@ -96,12 +97,51 @@ def dashboard_stats(current_user):
     cursor.execute("SELECT COUNT(*) as unresolved FROM tickets WHERE status != 'Resolved'")
     unresolved = cursor.fetchone()['unresolved']
 
-    # SLA Stats
+    # 2. SLA Stats
     cursor.execute("SELECT COUNT(*) as in_sla FROM tickets WHERE status = 'Resolved' AND sla_breached = 0")
     resolved_in_sla = cursor.fetchone()['in_sla']
 
     cursor.execute("SELECT COUNT(*) as outside_sla FROM tickets WHERE status = 'Resolved' AND sla_breached = 1")
     resolved_outside_sla = cursor.fetchone()['outside_sla']
+
+    # 3. Initialize empty 24-hour arrays (indices 0 to 23)
+    hourly_received = [0] * 24
+    hourly_resolved_in_sla = [0] * 24
+    hourly_resolved_outside_sla = [0] * 24
+
+    # 4. QUERY LIVE HOURLY DATA FROM DATABASE
+    
+    # Get hourly distribution of Received tickets based on created_at
+    cursor.execute("""
+        SELECT CAST(strftime('%H', created_at) AS INTEGER) as hour, COUNT(*) as count 
+        FROM tickets 
+        GROUP BY hour
+    """)
+    for row in cursor.fetchall():
+        if row['hour'] is not None and 0 <= row['hour'] < 24:
+            hourly_received[row['hour']] = row['count']
+
+    # Get hourly distribution of Resolved within SLA tickets
+    cursor.execute("""
+        SELECT CAST(strftime('%H', resolved_at) AS INTEGER) as hour, COUNT(*) as count 
+        FROM tickets 
+        WHERE status = 'Resolved' AND sla_breached = 0
+        GROUP BY hour
+    """)
+    for row in cursor.fetchall():
+        if row['hour'] is not None and 0 <= row['hour'] < 24:
+            hourly_resolved_in_sla[row['hour']] = row['count']
+
+    # Get hourly distribution of Resolved outside SLA tickets
+    cursor.execute("""
+        SELECT CAST(strftime('%H', resolved_at) AS INTEGER) as hour, COUNT(*) as count 
+        FROM tickets 
+        WHERE status = 'Resolved' AND sla_breached = 1
+        GROUP BY hour
+    """)
+    for row in cursor.fetchall():
+        if row['hour'] is not None and 0 <= row['hour'] < 24:
+            hourly_resolved_outside_sla[row['hour']] = row['count']
 
     stats = {
         "received": total,
@@ -116,12 +156,16 @@ def dashboard_stats(current_user):
         "resolved_outside_sla": resolved_outside_sla,
         "avg_resolution_time": "0 min",
         "min_resolution_time": "0 min",
-        "max_resolution_time": "0 min"
+        "max_resolution_time": "0 min",
+        
+        # Live 24-hour data sent straight to Chart.js
+        "hourly_received": hourly_received,
+        "hourly_resolved_in_sla": hourly_resolved_in_sla,
+        "hourly_resolved_outside_sla": hourly_resolved_outside_sla
     }
     
     conn.close()
     return jsonify(stats)
-
 
 # ====================== AUTH ROUTES ======================
 @app.route('/request-otp', methods=['POST'])
