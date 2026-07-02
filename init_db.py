@@ -1,37 +1,25 @@
-import sqlite3
-from datetime import datetime, timedelta
+import os
+from dotenv import load_dotenv
+from app import app, db  # Import your established application context & models
 
-# Connect to database
-connection = sqlite3.connect("tickets.db")
-cursor = connection.cursor()
+load_dotenv()
 
-# Create table
-create_table_sql = """
-CREATE TABLE IF NOT EXISTS tickets (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    requester_email TEXT NOT NULL,
-    requester_name TEXT NOT NULL,
-    subject TEXT NOT NULL,
-    description TEXT,
-    category TEXT NOT NULL,
-    priority TEXT NOT NULL,
-    "group" TEXT,
-    status TEXT DEFAULT 'Open',
-    assigned_agent TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    resolved_at TIMESTAMP,
-    sla_breached BOOLEAN DEFAULT 0
-);
-"""
+def initialize_production_database():
+    print("🔄 Connecting to PostgreSQL database cluster...")
+    
+    # We load everything inside the Flask Application context wrapper
+    with app.app_context():
+        try:
+            # Drop tables only if you want to wipe it completely for a clean test:
+            # db.drop_all() 
+            
+            # This triggers SQLAlchemy to build out your Ticket model schema automatically
+            db.create_all()
+            print("✅ PostgreSQL 'tickets' table generated successfully!")
+            
+        except Exception as e:
+            print(f"❌ Failed to construct database: {str(e)}")
+            print("💡 Tip: Verify your database server is running and the database 'tickets_db' actually exists.")
 
-cursor.execute(create_table_sql)
-
-# Optional: Create an index for faster searches
-cursor.execute("CREATE INDEX IF NOT EXISTS idx_status ON tickets(status);")
-cursor.execute("CREATE INDEX IF NOT EXISTS idx_requester ON tickets(requester_email);")
-
-connection.commit()
-connection.close()
-
-print("Table 'tickets' is ready.")
+if __name__ == "__main__":
+    initialize_production_database()

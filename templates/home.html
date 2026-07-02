@@ -1,35 +1,61 @@
 {% extends "layout.html" %}
-
 {% block content %}
-<h2 class="mt-4 mb-4">Dashboard</h2>
+<script>
+  (function() {
+    const token = localStorage.getItem('token');
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    
+    if (!token) {
+       window.location.href = "login.html";
+       return;
+    }
+    
+    // Auto-escalate Administrators straight out to the advanced charting workspace
+    if (user.role === "ADMINISTRATOR") {
+       window.location.href = "Admin_dashboard.html";
+    }
+  })();
+</script>
 
-<div class="row">
-    <div class="col-md-3">
-        <div class="card p-3 shadow-sm border-primary">
-            <h3 class="text-primary">{{ total }}</h3>
-            <p class="text-muted mb-0">Total Received</p>
+<div class="d-flex justify-content-between align-items-center mt-4 mb-4 border-b pb-2">
+    <div>
+        <h2 class="fw-bold text-dark mb-0">Helpdesk Portal Overview</h2>
+        <p class="text-muted small mb-0">Welcome back. Here is your active account queue telemetry summary.</p>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-4">
+        <div class="card p-3 shadow-sm border-0 border-start border-primary border-4 bg-white">
+            <h3 class="text-primary fw-bold mb-1">{{ total | default('0', true) }}</h3>
+            <p class="text-muted font-monospace text-uppercase small mb-0">Total Received</p>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card p-3 shadow-sm border-warning">
-            <h3 class="text-warning">{{ open }}</h3>
-            <p class="text-muted mb-0">Unresolved</p>
+    <div class="col-md-4">
+        <div class="card p-3 shadow-sm border-0 border-start border-warning border-4 bg-white">
+            <h3 class="text-warning fw-bold mb-1">{{ open | default('0', true) }}</h3>
+            <p class="text-muted font-monospace text-uppercase small mb-0">Active Unresolved</p>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card p-3 shadow-sm border-success">
-            <h3 class="text-success">{{ resolved }}</h3>
-            <p class="text-muted mb-0">Resolved</p>
+    <div class="col-md-4">
+        <div class="card p-3 shadow-sm border-0 border-start border-success border-4 bg-white">
+            <h3 class="text-success fw-bold mb-1">{{ resolved | default('0', true) }}</h3>
+            <p class="text-muted font-monospace text-uppercase small mb-0">Tickets Resolved</p>
         </div>
     </div>
 </div>
 
 <div class="row mt-4">
     <div class="col-md-12">
-        <div class="card p-4 shadow-sm">
-            <h5>Tickets Overview</h5>
-            <hr>
-            <p>Visual reports will appear here.</p>
+        <div class="card shadow-sm p-4 border-0 bg-white">
+            <h5 class="fw-bold text-secondary border-bottom pb-2 mb-3">
+                <i class="fa-solid fa-circle-info me-2"></i>Portal Navigation Notice
+            </h5>
+            <p class="text-muted mb-3">You are logged into the standard corporate personnel workspace profile. Use the links on the top menu navigation system bar to interact with active elements:</p>
+            <div class="d-flex gap-3">
+                <a href="submit_ticket.html" class="btn btn-sm btn-primary px-3"><i class="fa-solid fa-plus me-1"></i>File New Ticket</a>
+                <a href="view_tickets.html" class="btn btn-sm btn-outline-secondary px-3"><i class="fa-solid fa-list me-1"></i>Review My Tickets</a>
+            </div>
         </div>
     </div>
 </div>

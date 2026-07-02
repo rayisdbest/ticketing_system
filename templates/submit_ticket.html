@@ -1,22 +1,31 @@
 {% extends "layout.html" %}
 {% block content %}
+<script>
+  (function() {
+    const token = localStorage.getItem('token');
+    if (!token) {
+       window.location.href = "login.html";
+    }
+  })();
+</script>
+
 <div class="card shadow-sm mt-4">
-    <div class="card-header bg-primary text-white">
-        <h5>Raise a Ticket</h5>
+    <div class="card-header text-white" style="background-color: #008eb5;">
+        <h5 class="mb-0"><i class="fa-solid fa-pen-to-square me-2"></i>Raise a Support Ticket</h5>
     </div>
-    <div class="card-body">
-        <form method="POST" enctype="multipart/form-data">
-            <div class="row">
-                <div class="col-md-4">
+    <div class="card-body p-4">
+        <form id="ticketForm" enctype="multipart/form-data">
+            <div class="row g-4">
+                <div class="col-md-4 border-end">
                     <div class="mb-3">
-                        <label>Category</label>
+                        <label class="form-label fw-bold text-muted small text-uppercase">Category</label>
                         <select name="category" class="form-select">
                             <option>Problem</option>
                             <option>Request</option>
                         </select>
                     </div>
                     <div class="mb-3">
-                        <label>Priority</label>
+                        <label class="form-label fw-bold text-muted small text-uppercase">Priority Level</label>
                         <select name="priority" class="form-select">
                             <option>Low</option>
                             <option>Medium</option>
@@ -24,28 +33,62 @@
                         </select>
                     </div>
                     <div class="mb-3">
-                        <label>Group</label>
-                        <input type="text" name="group" class="form-control">
+                        <label class="form-label fw-bold text-muted small text-uppercase">Target IT Group</label>
+                        <input type="text" name="group" class="form-control" placeholder="e.g., Network, Hardware" value="General">
                     </div>
                 </div>
 
                 <div class="col-md-8">
                     <div class="mb-3">
-                        <label>Subject *</label>
-                        <input type="text" name="subject" class="form-control" required>
+                        <label class="form-label fw-bold text-muted small text-uppercase">Subject / Issue Title *</label>
+                        <input type="text" name="subject" class="form-control" placeholder="Brief summary of the issue" required>
                     </div>
                     <div class="mb-3">
-                        <label>Description (Optional)</label>
-                        <textarea name="description" class="form-control" rows="8"></textarea>
+                        <label class="form-label fw-bold text-muted small text-uppercase">Detailed Description (Optional)</label>
+                        <textarea name="description" class="form-control" rows="6" placeholder="Please provide details to help us troubleshoot..."></textarea>
                     </div>
-                    <div class="mb-3">
-                        <label>Attach file</label>
+                    <div class="mb-4">
+                        <label class="form-label fw-bold text-muted small text-uppercase">Secure File Attachment</label>
                         <input type="file" name="file" class="form-control">
+                        <div class="form-text text-muted">Permitted corporate system log files or diagnostic screenshots only.</div>
                     </div>
-                    <button type="submit" class="btn btn-primary">Submit a ticket</button>
+                    <div class="d-flex justify-content-end">
+                        <button type="submit" class="btn text-white px-4 py-2" style="background-color: #008eb5;">
+                            <i class="fa-solid fa-paper-plane me-2"></i>Submit Ticket
+                        </button>
+                    </div>
                 </div>
             </div>
         </form>
     </div>
 </div>
+
+<script>
+document.getElementById('ticketForm').addEventListener('submit', async function(e) {
+    e.preventDefault(); // Stop standard browser page-reload action
+    
+    const token = localStorage.getItem('token');
+    const formData = new FormData(this);
+
+    try {
+        const res = await fetch('/api/tickets/submit', {
+            method: 'POST',
+            headers: { 
+                'Authorization': `Bearer ${token}` 
+            },
+            body: formData
+        });
+        
+        const data = await res.json();
+        if (res.ok) {
+            alert("✅ Ticket submitted successfully!");
+            window.location.href = "view_tickets.html";
+        } else {
+            alert("❌ Submission Denied: " + (data.error || "Could not process request"));
+        }
+    } catch(err) {
+        alert("CRITICAL: Failed to communicate with the secure ticketing database engine.");
+    }
+});
+</script>
 {% endblock %}

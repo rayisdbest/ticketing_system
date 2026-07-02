@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nagaria Textiles - Login</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <style>
+    body { background: linear-gradient(135deg, #f3e7e9, #e6f0ff); }
+    .card { background: white; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+  </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+
+  <div class="card w-full max-w-md rounded-2xl p-8">
+    <div class="text-center mb-8">
+      <h1 class="text-3xl font-bold text-gray-800">Nagaria Textiles</h1>
+      <p class="text-gray-600 mt-2">IT Support Portal</p>
+    </div>
+
+    <div id="step-email">
+      <h2 class="text-xl font-semibold mb-4">Sign In</h2>
+      <p class="text-gray-500 text-sm mb-4">Enter your corporate email address to receive an authentication security code.</p>
+      <div class="mb-4">
+        <label class="block text-gray-700 text-sm font-medium mb-2">Email Address</label>
+        <div class="relative">
+          <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
+            <i class="fas fa-envelope"></i>
+          </span>
+          <input id="email" type="email" placeholder="username@nagariatextiles.com" class="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+      </div>
+      <button onclick="requestOTP()" class="w-full bg-[#00a3d1] hover:bg-[#0089b0] text-white font-medium py-2.5 rounded-lg transition duration-200">Send Verification Code</button>
+    </div>
+
+    <div id="step-otp" class="hidden">
+      <h2 class="text-xl font-semibold mb-2">Verify Identity</h2>
+      <p id="otp-target" class="text-gray-500 text-sm mb-4"></p>
+      <div class="mb-4">
+        <label class="block text-gray-700 text-sm font-medium mb-2">Your Full Name</label>
+        <input id="username" type="text" placeholder="John Doe" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 mb-3" required>
+        
+        <label class="block text-gray-700 text-sm font-medium mb-2">6-Digit Code</label>
+        <input id="otp" type="text" maxlength="6" placeholder="123456" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 tracking-widest text-center text-lg font-bold">
+      </div>
+      <button onclick="verifyOTP()" class="w-full bg-[#00a3d1] hover:bg-[#0089b0] text-white font-medium py-2.5 rounded-lg transition duration-200">Confirm & Login</button>
+      <button onclick="backToEmail()" class="w-full text-gray-500 text-sm font-medium mt-3 hover:underline">Back</button>
+    </div>
+
+    <p id="message" class="text-center text-sm font-medium mt-4"></p>
+  </div>
+
+<script>
+let currentEmail = "";
+
+async function requestOTP() {
+  const email = document.getElementById('email').value.trim();
+  const msg = document.getElementById('message');
+
+  if(!email || !email.endsWith('@nagariatextiles.com')) {
+    msg.style.color = 'red';
+    msg.textContent = "❌ Access Denied: Only @nagariatextiles.com domain configurations are permitted.";
+    return;
+  }
+
+  msg.style.color = 'gray';
+  msg.textContent = "Requesting secure token pass...";
+
+  try {
+    const res = await fetch('http://127.0.0.1:5000/request-otp', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ email })
+    });
+    const data = await res.json();
+
+    if(res.ok) {
+      currentEmail = email;
+      document.getElementById('step-email').classList.add('hidden');
+      document.getElementById('step-otp').classList.remove('hidden');
+      document.getElementById('otp-target').textContent = `Code dispatched securely to ${email}`;
+      msg.textContent = "";
+    } else {
+      msg.style.color = 'red';
+      msg.textContent = data.error || "Authentication channel exception occurred.";
+    }
+  } catch(e) {
+    msg.style.color = 'red';
+    msg.textContent = "Could not link to backend authentication server engine.";
+  }
+}
+
+async function verifyOTP() {
+  const otp = document.getElementById('otp').value.trim();
+  const username = document.getElementById('username').value.trim();
+  const msg = document.getElementById('message');
+
+  if(!otp || !username) {
+    msg.style.color = 'red';
+    msg.textContent = "❌ Full Name and verification code requirements missing.";
+    return;
+  }
+
+  try {
+    const res = await fetch('http://127.0.0.1:5000/verify-otp', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ email: currentEmail, otp, username })
+    });
+    const data = await res.json();
+
+    if(res.ok) {
+      msg.style.color = 'green';
+      msg.textContent = `✅ Welcome, ${username}! Generating session tokens...`;
+
+      // Cache token vectors into persistent storage context
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(data));
+
+      // Automated RBAC Redirection Mapping Route Controls
+      setTimeout(() => {
+        if (data.role === "ADMINISTRATOR") {
+          window.location.href = "Admin_dashboard.html";
+        } else {
+          window.location.href = "view_tickets.html";
+        }
+      }, 800);
+    } else {
+      msg.style.color = 'red';
+      msg.textContent = data.error || "Invalid security verification key provided.";
+    }
+  } catch(e) {
+    msg.style.color = 'red';
+    msg.textContent = "Verification tracking transaction exception.";
+  }
+}
+
+function backToEmail() {
+  document.getElementById('step-otp').classList.add('hidden');
+  document.getElementById('step-email').classList.remove('hidden');
+  document.getElementById('message').textContent = "";
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nagaria Textiles - Reports</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script>
+      (function() {
+        const token = localStorage.getItem('token');
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        if (!token || user.role !== "ADMINISTRATOR") {
+           alert("Access Denied: Reports are reserved strictly for Administrators.");
+           window.location.href = "login.html";
+        }
+      })();
+    </script>
+    <style>
+        body {
+            background-color: #f0f4f8;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .nav-active {
+            background-color: #0d8cb5;
+        }
+    </style>
+</head>
+<body>
+
+    <nav class="bg-[#009bcf] text-white px-6 py-3 flex items-center justify-between shadow-md">
+        <div class="flex items-center space-x-2 text-xl font-semibold tracking-wide">
+            <i class="fa-solid fa-cloud"></i>
+            <span>raiseaticket | <span class="font-normal text-slate-100">Nagaria Textiles</span></span>
+        </div>
+        
+        <div class="flex items-center space-x-1 text-sm font-medium">
+            <a href="Admin_dashboard.html" class="px-3 py-1.5 rounded hover:bg-[#0c8ab4] transition"><i class="fa-solid fa-chart-pie mr-1"></i> Dashboard</a>
+            <a href="submit_ticket.html" class="px-3 py-1.5 rounded hover:bg-[#0c8ab4] transition"><i class="fa-solid fa-plus mr-1"></i> Raise a Ticket</a>
+            <a href="view_tickets.html" class="px-3 py-1.5 rounded hover:bg-[#0c8ab4] transition"><i class="fa-solid fa-ticket mr-1"></i> Tickets</a>
+            <a href="reports.html" class="nav-active px-3 py-1.5 rounded transition"><i class="fa-solid fa-file-invoice mr-1"></i> Reports</a>
+            <span class="text-white/30 px-1">|</span>
+            <span id="nav-username" class="text-slate-100 font-medium">Loading...</span>
+            <button onclick="logout()" class="hover:text-red-200 pl-2" title="Logout Profile"><i class="fa-solid fa-right-from-bracket"></i></button>
+        </div>
+    </nav>
+
+    <div class="max-w-7xl mx-auto p-6 space-y-6">
+        <div class="flex items-center justify-between border-b border-slate-200 pb-3">
+            <div>
+                <h2 class="text-2xl font-bold text-slate-800">Operational Reporting Engine</h2>
+                <p class="text-slate-500 text-sm">Real-time analytical performance tracking distributions</p>
+            </div>
+            <div id="runtime-user" class="text-xs bg-slate-200 text-slate-600 px-3 py-1 rounded-full font-medium"></div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm h-[400px] flex flex-col">
+                <h4 class="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">Priority Volume Distribution</h4>
+                <div class="flex-1 relative">
+                    <canvas id="priorityChart"></canvas>
+                </div>
+            </div>
+
+            <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm h-[400px] flex flex-col">
+                <h4 class="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">Status Volume Distribution</h4>
+                <div class="flex-1 relative">
+                    <canvas id="statusChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+let priorityChart = null;
+let statusChart = null;
+
+// Standard helper to create beautiful UI bar gradients cleanly
+function createGradient(ctx, color1, color2) {
+    const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+    gradient.addColorStop(0, color1);
+    gradient.addColorStop(1, color2);
+    return gradient;
+}
+
+// Global Configuration Configurations for Chart Layout Objects
+const xAxisScales = { grid: { display: false }, ticks: { color: '#64748b', font: { family: 'Segoe UI', size: 12 } } };
+const yAxisScales = { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { color: '#64748b', font: { family: 'Segoe UI', size: 12 } } };
+
+async function fetchReportStats() {
+    const token = localStorage.getItem('token');
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    
+    if(user.username) {
+        document.getElementById('nav-username').textContent = user.username;
+        document.getElementById('runtime-user').textContent = `Operator: ${user.username}`;
+    }
+
+    try {
+        const res = await fetch('http://127.0.0.1:5000/api/dashboard/stats', {
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (res.ok) {
+            const stats = await res.json();
+            updateAnalyticalPanels(stats);
+        } else if (res.status === 401) {
+            logout();
+        }
+    } catch(e) {
+        console.error("Critical error building system charting frameworks:", e);
+    }
+}
+
+function updateAnalyticalPanels(stats) {
+    // --- Priority Chart Mapping Logic ---
+    const priCtx = document.getElementById('priorityChart').getContext('2d');
+    if (priorityChart) priorityChart.destroy();
+    
+    priorityChart = new Chart(priCtx, {
+        type: 'bar',
+        data: {
+            labels: ['High Priority (Overdue)', 'Medium Priority (Pending)', 'Low Priority (Unassigned)'],
+            datasets: [{
+                data: [stats.overdue ?? 0, stats.pending ?? 0, stats.unassigned ?? 0],
+                backgroundColor: createGradient(priCtx, '#fb923c', '#ea580c'),
+                borderRadius: 6,
+                barThickness: 45
+            }]
+        },
+        options: { 
+            responsive: true, 
+            maintainAspectRatio: false, 
+            plugins: { legend: { display: false } }, 
+            scales: { x: xAxisScales, y: yAxisScales } 
+        }
+    });
+
+    // --- Status Chart Mapping Logic ---
+    const statCtx = document.getElementById('statusChart').getContext('2d');
+    if (statusChart) statusChart.destroy();
+    
+    statusChart = new Chart(statCtx, {
+        type: 'bar',
+        data: {
+            labels: ['Total Received', 'Resolved Envelopes', 'Unresolved Scope'],
+            datasets: [{
+                data: [stats.received ?? 0, stats.resolved ?? 0, stats.unresolved ?? 0],
+                backgroundColor: createGradient(statCtx, '#60a5fa', '#3b82f6'),
+                borderRadius: 6,
+                barThickness: 45
+            }]
+        },
+        options: { 
+            responsive: true, 
+            maintainAspectRatio: false, 
+            plugins: { legend: { display: false } }, 
+            scales: { x: xAxisScales, y: yAxisScales } 
+        }
+    });
+}
+
+function logout() {
+    localStorage.clear();
+    window.location.href = "login.html";
+}
+
+window.addEventListener('DOMContentLoaded', fetchReportStats);
+</script>
+</body>
+</html>
