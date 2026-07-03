@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nagaria Textiles - Reports</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
@@ -18,6 +18,7 @@
         }
       })();
     </script>
+
     <style>
         body {
             background-color: #f0f4f8;
@@ -33,142 +34,188 @@
     <nav class="bg-[#009bcf] text-white px-6 py-3 flex items-center justify-between shadow-md">
         <div class="flex items-center space-x-2 text-xl font-semibold tracking-wide">
             <i class="fa-solid fa-cloud"></i>
-            <span>raiseaticket | <span class="font-normal text-slate-100">Nagaria Textiles</span></span>
+            <span>Nagaria Textiles</span>
         </div>
         
         <div class="flex items-center space-x-1 text-sm font-medium">
-            <a href="Admin_dashboard.html" class="px-3 py-1.5 rounded hover:bg-[#0c8ab4] transition"><i class="fa-solid fa-chart-pie mr-1"></i> Dashboard</a>
-            <a href="submit_ticket.html" class="px-3 py-1.5 rounded hover:bg-[#0c8ab4] transition"><i class="fa-solid fa-plus mr-1"></i> Raise a Ticket</a>
-            <a href="view_tickets.html" class="px-3 py-1.5 rounded hover:bg-[#0c8ab4] transition"><i class="fa-solid fa-ticket mr-1"></i> Tickets</a>
-            <a href="reports.html" class="nav-active px-3 py-1.5 rounded transition"><i class="fa-solid fa-file-invoice mr-1"></i> Reports</a>
-            <span class="text-white/30 px-1">|</span>
-            <span id="nav-username" class="text-slate-100 font-medium">Loading...</span>
-            <button onclick="logout()" class="hover:text-red-200 pl-2" title="Logout Profile"><i class="fa-solid fa-right-from-bracket"></i></button>
+            <button class="p-2 hover:bg-[#0089b8] rounded-md transition"><i class="fa-solid fa-magnifying-glass"></i></button>
+            <a href="Admin_dashboard.html" class="px-3 py-2 hover:bg-[#0089b8] rounded-md transition"><i class="fa-solid fa-house mr-1"></i> Dashboard</a>
+            <a href="submit_ticket.html" class="px-3 py-2 hover:bg-[#0089b8] rounded-md transition"><i class="fa-solid fa-plus mr-1"></i> Raise a ticket</a>
+            <a href="view_tickets.html" class="px-3 py-2 hover:bg-[#0089b8] rounded-md transition"><i class="fa-solid fa-ticket mr-1"></i> Tickets</a>
+            <a href="reports.html" class="px-3 py-2 nav-active rounded-md transition"><i class="fa-solid fa-chart-bar mr-1"></i> Reports</a>
+            <button class="px-3 py-2 hover:bg-[#0089b8] rounded-md transition"><i class="fa-solid fa-gear mr-1"></i> Settings</button>
+            <span class="text-slate-300 mx-2">|</span>
+            
+            <span id="nav-username" class="px-3 py-2 rounded-md transition text-xs font-semibold uppercase tracking-wider">Loading...</span>
+            
+            <button onclick="logout()" class="w-8 h-8 rounded-full bg-[#0089b8] flex items-center justify-center border border-slate-200 hover:scale-105 hover:text-red-200 transition" title="Logout Profile">
+                <i class="fa-solid fa-right-from-bracket text-sm"></i>
+            </button>
         </div>
     </nav>
 
-    <div class="max-w-7xl mx-auto p-6 space-y-6">
-        <div class="flex items-center justify-between border-b border-slate-200 pb-3">
-            <div>
-                <h2 class="text-2xl font-bold text-slate-800">Operational Reporting Engine</h2>
-                <p class="text-slate-500 text-sm">Real-time analytical performance tracking distributions</p>
-            </div>
-            <div id="runtime-user" class="text-xs bg-slate-200 text-slate-600 px-3 py-1 rounded-full font-medium"></div>
-        </div>
-
+    <div class="max-w-7xl mx-auto p-6 mt-4">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm h-[400px] flex flex-col">
-                <h4 class="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">Priority Volume Distribution</h4>
-                <div class="flex-1 relative">
+            
+            <div class="bg-white rounded-lg p-5 border border-slate-200 shadow-sm flex flex-col items-center">
+                <h3 class="w-full text-left text-slate-600 font-semibold text-sm mb-4 border-b border-slate-100 pb-2">By Channel</h3>
+                <div class="relative w-64 h-64">
+                    <canvas id="channelChart"></canvas>
+                    <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none" style="top: -10px;">
+                        <span class="text-xs text-slate-400 font-medium uppercase">Total</span>
+                        <span id="channelTotal" class="text-3xl font-bold text-slate-700">0</span>
+                    </div>
+                </div>
+                <div id="channelLegend" class="flex items-center justify-center flex-wrap gap-3 mt-4 text-xs font-medium text-slate-600">
+                    </div>
+            </div>
+
+            <div class="bg-white rounded-lg p-5 border border-slate-200 shadow-sm">
+                <h3 class="text-slate-600 font-semibold text-sm mb-4 border-b border-slate-100 pb-2">By Category</h3>
+                <div class="h-64 w-full">
+                    <canvas id="categoryChart"></canvas>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg p-5 border border-slate-200 shadow-sm">
+                <h3 class="text-slate-600 font-semibold text-sm mb-4 border-b border-slate-100 pb-2">By Priority</h3>
+                <div class="h-64 w-full">
                     <canvas id="priorityChart"></canvas>
                 </div>
             </div>
 
-            <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm h-[400px] flex flex-col">
-                <h4 class="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">Status Volume Distribution</h4>
-                <div class="flex-1 relative">
+            <div class="bg-white rounded-lg p-5 border border-slate-200 shadow-sm">
+                <h3 class="text-slate-600 font-semibold text-sm mb-4 border-b border-slate-100 pb-2">By Status</h3>
+                <div class="h-64 w-full">
                     <canvas id="statusChart"></canvas>
                 </div>
             </div>
+
         </div>
     </div>
 
-<script>
-let priorityChart = null;
-let statusChart = null;
+    <div class="fixed bottom-6 right-6">
+        <button onclick="window.scrollTo({top: 0, behavior: 'smooth'})" class="w-10 h-10 bg-white border border-slate-200 text-slate-400 rounded-full flex items-center justify-center shadow-md hover:text-slate-600 transition cursor-pointer">
+            <i class="fa-solid fa-arrow-up"></i>
+        </button>
+    </div>
 
-// Standard helper to create beautiful UI bar gradients cleanly
-function createGradient(ctx, color1, color2) {
-    const gradient = ctx.createLinearGradient(0, 0, 0, 400);
-    gradient.addColorStop(0, color1);
-    gradient.addColorStop(1, color2);
-    return gradient;
-}
+    <script>
+        // Global visual configurations matching dashboard standards
+        const gridConfig = { borderDash: [3, 3], color: '#e2e8f0', drawBorder: false };
+        const xAxisScales = { ticks: { color: '#64748b', font: { size: 12, weight: '500' } }, grid: { display: false } };
+        const yAxisScales = { min: 0, ticks: { stepSize: 1, color: '#94a3b8', font: { size: 11 } }, grid: gridConfig };
 
-// Global Configuration Configurations for Chart Layout Objects
-const xAxisScales = { grid: { display: false }, ticks: { color: '#64748b', font: { family: 'Segoe UI', size: 12 } } };
-const yAxisScales = { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { color: '#64748b', font: { family: 'Segoe UI', size: 12 } } };
-
-async function fetchReportStats() {
-    const token = localStorage.getItem('token');
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
-    
-    if(user.username) {
-        document.getElementById('nav-username').textContent = user.username;
-        document.getElementById('runtime-user').textContent = `Operator: ${user.username}`;
-    }
-
-    try {
-        const res = await fetch('http://127.0.0.1:5000/api/dashboard/stats', {
-            method: 'GET',
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-
-        if (res.ok) {
-            const stats = await res.json();
-            updateAnalyticalPanels(stats);
-        } else if (res.status === 401) {
-            logout();
+        function createGradient(ctx, colorStart, colorEnd) {
+            const gradient = ctx.createLinearGradient(0, 0, 0, 250);
+            gradient.addColorStop(0, colorStart);
+            gradient.addColorStop(1, colorEnd);
+            return gradient;
         }
-    } catch(e) {
-        console.error("Critical error building system charting frameworks:", e);
-    }
-}
 
-function updateAnalyticalPanels(stats) {
-    // --- Priority Chart Mapping Logic ---
-    const priCtx = document.getElementById('priorityChart').getContext('2d');
-    if (priorityChart) priorityChart.destroy();
-    
-    priorityChart = new Chart(priCtx, {
-        type: 'bar',
-        data: {
-            labels: ['High Priority (Overdue)', 'Medium Priority (Pending)', 'Low Priority (Unassigned)'],
-            datasets: [{
-                data: [stats.overdue ?? 0, stats.pending ?? 0, stats.unassigned ?? 0],
-                backgroundColor: createGradient(priCtx, '#fb923c', '#ea580c'),
-                borderRadius: 6,
-                barThickness: 45
-            }]
-        },
-        options: { 
-            responsive: true, 
-            maintainAspectRatio: false, 
-            plugins: { legend: { display: false } }, 
-            scales: { x: xAxisScales, y: yAxisScales } 
+        let channelChart, categoryChart, priorityChart, statusChart;
+
+        // Security Logout Function
+        function logout() {
+            localStorage.clear();
+            window.location.href = "login.html";
         }
-    });
 
-    // --- Status Chart Mapping Logic ---
-    const statCtx = document.getElementById('statusChart').getContext('2d');
-    if (statusChart) statusChart.destroy();
-    
-    statusChart = new Chart(statCtx, {
-        type: 'bar',
-        data: {
-            labels: ['Total Received', 'Resolved Envelopes', 'Unresolved Scope'],
-            datasets: [{
-                data: [stats.received ?? 0, stats.resolved ?? 0, stats.unresolved ?? 0],
-                backgroundColor: createGradient(statCtx, '#60a5fa', '#3b82f6'),
-                borderRadius: 6,
-                barThickness: 45
-            }]
-        },
-        options: { 
-            responsive: true, 
-            maintainAspectRatio: false, 
-            plugins: { legend: { display: false } }, 
-            scales: { x: xAxisScales, y: yAxisScales } 
+        async function fetchReportStats() {
+            try {
+                const token = localStorage.getItem('token');
+                const user = JSON.parse(localStorage.getItem('user') || '{}');
+                
+                // Inject Username into the Top Nav
+                if(user.username) {
+                    document.getElementById('nav-username').textContent = user.username;
+                }
+
+                // Point fetch exactly to the established Python Backend
+                const response = await fetch('/api/dashboard/stats', {
+                    headers: { 'Authorization': token ? `Bearer ${token}` : '' }
+                });
+                
+                if (!response.ok) {
+                    if (response.status === 401) logout();
+                    throw new Error("Failed to load dashboard statistics");
+                }
+                const data = await response.json();
+                
+                updateCharts(data);
+            } catch (error) {
+                console.error("Error updating report metrics:", error);
+            }
         }
-    });
-}
 
-function logout() {
-    localStorage.clear();
-    window.location.href = "login.html";
-}
+        function updateCharts(data) {
+            // --- 1. Channel Chart Update (Mapped all tickets to 'Portal' by default for visual completeness) ---
+            const channelLabels = ['Portal', 'Email', 'Phone'];
+            const channelValues = [data.received || 0, 0, 0];
+            const totalCount = channelValues.reduce((a, b) => a + b, 0);
+            document.getElementById('channelTotal').innerText = totalCount;
 
-window.addEventListener('DOMContentLoaded', fetchReportStats);
-</script>
+            const channelColors = ['#10b981', '#3b82f6', '#f59e0b', '#ec4899'];
+            
+            const legendContainer = document.getElementById('channelLegend');
+            legendContainer.innerHTML = '';
+            channelLabels.forEach((label, index) => {
+                const color = channelColors[index % channelColors.length];
+                legendContainer.innerHTML += `
+                    <div class="flex items-center space-x-1.5">
+                        <span class="w-2.5 h-2.5 rounded-full" style="background-color: ${color}"></span>
+                        <span>${label}</span>
+                    </div>`;
+            });
+
+            if (channelChart) channelChart.destroy();
+            channelChart = new Chart(document.getElementById('channelChart').getContext('2d'), {
+                type: 'doughnut',
+                data: {
+                    labels: channelLabels,
+                    datasets: [{ data: channelValues, backgroundColor: channelColors, borderWidth: 0, cutout: '80%' }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+            });
+
+            // --- 2. Category Chart Update (Estimating Problem vs Request splits) ---
+            const catCtx = document.getElementById('categoryChart').getContext('2d');
+            if (categoryChart) categoryChart.destroy();
+            categoryChart = new Chart(catCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['Problem', 'Request'],
+                    datasets: [{ data: [data.unresolved || 0, data.resolved || 0], backgroundColor: createGradient(catCtx, '#60a5fa', '#3b82f6'), borderRadius: 6, barThickness: 45 }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: xAxisScales, y: yAxisScales } }
+            });
+
+            // --- 3. Priority Chart Update (Real API Metrics) ---
+            const priCtx = document.getElementById('priorityChart').getContext('2d');
+            if (priorityChart) priorityChart.destroy();
+            priorityChart = new Chart(priCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['High (Overdue)', 'Medium (Pending)', 'Low (Unassigned)'],
+                    datasets: [{ data: [data.overdue || 0, data.pending || 0, data.unassigned || 0], backgroundColor: createGradient(priCtx, '#fb923c', '#ea580c'), borderRadius: 6, barThickness: 45 }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: xAxisScales, y: yAxisScales } }
+            });
+
+            // --- 4. Status Chart Update (Real API Metrics) ---
+            const statCtx = document.getElementById('statusChart').getContext('2d');
+            if (statusChart) statusChart.destroy();
+            statusChart = new Chart(statCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['Total Received', 'Resolved', 'Unresolved'],
+                    datasets: [{ data: [data.received || 0, data.resolved || 0, data.unresolved || 0], backgroundColor: createGradient(statCtx, '#60a5fa', '#3b82f6'), borderRadius: 6, barThickness: 45 }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: xAxisScales, y: yAxisScales } }
+            });
+        }
+
+        window.addEventListener('DOMContentLoaded', fetchReportStats);
+    </script>
 </body>
 </html>
