@@ -69,9 +69,7 @@ with app.app_context():
 
 # ====================== UNIFIED POSTGRESQL HELPER ======================
 def get_db_connection():
-    # Routes analytics connections to the identical PostgreSQL URI
-    conn = psycopg2.connect(app.config['SQLALCHEMY_DATABASE_URI'])
-    return conn
+    return psycopg2.connect(app.config['SQLALCHEMY_DATABASE_URI'])
 
 
 # ====================== JWT TOKEN DECORATOR ======================
@@ -153,80 +151,179 @@ def view_tickets_page():
     return render_template('view_tickets.html', tickets=tickets)
 
 
-# ====================== API DATA ENDPOINTS ======================
+# ====================== UPGRADED API DATA ENDPOINT ======================
 
 @app.route('/api/dashboard/stats', methods=['GET'])
 @token_required
 def dashboard_stats(current_user):
+    timeframe = request.args.get('timeframe', 'today')  # today, week, month, year
+    overview = request.args.get('overview', 'tickets')  # tickets, agents
+
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
     
-    cursor.execute("SELECT COUNT(*) as total FROM ticket")
+    # 1. Build Timeframe SQL clause based on Calendar selection
+    if timeframe == 'week':
+        time_filter = "AND created_at >= CURRENT_DATE - INTERVAL '7 days'"
+        time_filter_resolved = "AND resolved_at >= CURRENT_DATE - INTERVAL '7 days'"
+    elif timeframe == 'month':
+        time_filter = "AND created_at >= CURRENT_DATE - INTERVAL '30 days'"
+        time_filter_resolved = "AND resolved_at >= CURRENT_DATE - INTERVAL '30 days'"
+    elif timeframe == 'year':
+        time_filter = "AND created_at >= CURRENT_DATE - INTERVAL '365 days'"
+        time_filter_resolved = "AND resolved_at >= CURRENT_DATE - INTERVAL '365 days'"
+    else:  # 'today' standard default
+        time_filter = "AND created_at >= CURRENT_DATE"
+        time_filter_resolved = "AND resolved_at >= CURRENT_DATE"
+
+    # 2. Extract General KPIs matching selected Timeframe
+    cursor.execute(f"SELECT COUNT(*) as total FROM ticket WHERE 1=1 {time_filter}")
     total = cursor.fetchone()['total'] or 0
 
-    cursor.execute("SELECT COUNT(*) as resolved FROM ticket WHERE status = 'Resolved'")
+    cursor.execute(f"SELECT COUNT(*) as resolved FROM ticket WHERE status = 'Resolved' {time_filter}")
     resolved = cursor.fetchone()['resolved'] or 0
 
-    cursor.execute("SELECT COUNT(*) as unresolved FROM ticket WHERE status != 'Resolved'")
+    cursor.execute(f"SELECT COUNT(*) as unresolved FROM ticket WHERE status != 'Resolved' {time_filter}")
     unresolved = cursor.fetchone()['unresolved'] or 0
 
-    cursor.execute("SELECT COUNT(*) as in_sla FROM ticket WHERE status = 'Resolved' AND sla_breached = 0")
+    cursor.execute(f"SELECT COUNT(*) as in_sla FROM ticket WHERE status = 'Resolved' AND sla_breached = 0 {time_filter}")
     resolved_in_sla = cursor.fetchone()['in_sla'] or 0
 
-    cursor.execute("SELECT COUNT(*) as outside_sla FROM ticket WHERE status = 'Resolved' AND sla_breached = 1")
+    cursor.execute(f"SELECT COUNT(*) as outside_sla FROM ticket WHERE status = 'Resolved' AND sla_breached = 1 {time_filter}")
     resolved_outside_sla = cursor.fetchone()['outside_sla'] or 0
 
-    hourly_received = [0] * 24
-    hourly_resolved_in_sla = [0] * 24
-    hourly_resolved_outside_sla = [0] * 24
+    cursor.execute(f"SELECT COUNT(*) as overdue FROM ticket WHERE status != 'Resolved' AND sla_breached = 1 {time_filter}")
+    overdue = cursor.fetchone()['overdue'] or 0
 
-    # Adjusted to standard PostgreSQL date/time extraction syntax
-    cursor.execute("""
-        SELECT EXTRACT(HOUR FROM created_at)::INTEGER as hour, COUNT(*) as count 
-        FROM ticket 
-        GROUP BY hour
-    """)
-    for row in cursor.fetchall():
-        if row['hour'] is not None and 0 <= row['hour'] < 24:
-            hourly_received[row['hour']] = row['count']
+    cursor.execute(f"SELECT COUNT(*) as due_today FROM ticket WHERE status != 'Resolved' AND created_at::DATE = CURRENT_DATE")
+    due_today = cursor.fetchone()['due_today'] or 0
 
-    cursor.execute("""
-        SELECT EXTRACT(HOUR FROM resolved_at)::INTEGER as hour, COUNT(*) as count 
-        FROM ticket 
-        WHERE status = 'Resolved' AND sla_breached = 0
-        GROUP BY hour
-    """)
-    for row in cursor.fetchall():
-        if row['hour'] is not None and 0 <= row['hour'] < 24:
-            hourly_resolved_in_sla[row['hour']] = row['count']
+    cursor.execute(f"SELECT COUNT(*) as pending FROM ticket WHERE status = 'Pending' {time_filter}")
+    pending = cursor.fetchone()['pending'] or 0
 
-    cursor.execute("""
-        SELECT EXTRACT(HOUR FROM resolved_at)::INTEGER as hour, COUNT(*) as count 
+    cursor.execute(f"SELECT COUNT(*) as unassigned FROM ticket WHERE assigned_agent IS NULL {time_filter}")
+    unassigned = cursor.fetchone()['unassigned'] or 0
+
+    # 3. LIVE DYNAMIC RESOLUTION TIMES MATH
+    # Extracts epoch difference in seconds, divides by 60 to compute accurate live minutes
+    cursor.execute(f"""
+        SELECT 
+            COALESCE(ROUND(AVG(EXTRACT(EPOCH FROM (resolved_at - created_at)) / 60)), 0) as avg_res,
+            COALESCE(ROUND(MIN(EXTRACT(EPOCH FROM (resolved_at - created_at)) / 60)), 0) as min_res,
+            COALESCE(ROUND(MAX(EXTRACT(EPOCH FROM (resolved_at - created_at)) / 60)), 0) as max_res
         FROM ticket 
-        WHERE status = 'Resolved' AND sla_breached = 1
-        GROUP BY hour
+        WHERE status = 'Resolved' {time_filter}
     """)
-    for row in cursor.fetchall():
-        if row['hour'] is not None and 0 <= row['hour'] < 24:
-            hourly_resolved_outside_sla[row['hour']] = row['count']
+    res_times = cursor.fetchone()
+    avg_resolution_time = f"{int(res_times['avg_res'])} min"
+    min_resolution_time = f"{int(res_times['min_res'])} min"
+    max_resolution_time = f"{int(res_times['max_res'])} min"
+
+    # 4. CHART DATA HANDLING GENERATOR (TICKETS VS AGENTS OVERVIEW)
+    chart_labels = []
+    chart_received = []
+    chart_in_sla = []
+    chart_out_sla = []
+
+    if overview == 'agents':
+        # Fetching breakdown per distinct agent handling tickets
+        cursor.execute(f"""
+            SELECT COALESCE(assigned_agent, 'Unassigned') as agent,
+                   COUNT(*) as received,
+                   COUNT(CASE WHEN status = 'Resolved' AND sla_breached = 0 THEN 1 END) as in_sla,
+                   COUNT(CASE WHEN status = 'Resolved' AND sla_breached = 1 THEN 1 END) as out_sla
+            FROM ticket
+            WHERE 1=1 {time_filter}
+            GROUP BY assigned_agent
+            ORDER BY received DESC
+        """)
+        rows = cursor.fetchall()
+        for r in rows:
+            chart_labels.append(r['agent'])
+            chart_received.append(r['received'])
+            chart_in_sla.append(r['in_sla'])
+            chart_out_sla.append(r['out_sla'])
+            
+    else: # overview == 'tickets' breakdown by time slots
+        if timeframe == 'today':
+            chart_labels = [f"{str(i).padStart(2, '0')}:00" for i in range(24)]
+            chart_received = [0] * 24
+            chart_in_sla = [0] * 24
+            chart_out_sla = [0] * 24
+            
+            cursor.execute(f"SELECT EXTRACT(HOUR FROM created_at)::INTEGER as hour, COUNT(*) as cnt FROM ticket WHERE 1=1 {time_filter} GROUP BY hour")
+            for r in cursor.fetchall(): chart_received[r['hour']] = r['cnt']
+            
+            cursor.execute(f"SELECT EXTRACT(HOUR FROM resolved_at)::INTEGER as hour, COUNT(*) as cnt FROM ticket WHERE status = 'Resolved' AND sla_breached = 0 {time_filter_resolved} GROUP BY hour")
+            for r in cursor.fetchall(): chart_in_sla[r['hour']] = r['cnt']
+            
+            cursor.execute(f"SELECT EXTRACT(HOUR FROM resolved_at)::INTEGER as hour, COUNT(*) as cnt FROM ticket WHERE status = 'Resolved' AND sla_breached = 1 {time_filter_resolved} GROUP BY hour")
+            for r in cursor.fetchall(): chart_out_sla[r['hour']] = r['cnt']
+            
+        elif timeframe in ['week', 'month']:
+            # Breakdown by days
+            days_back = 7 if timeframe == 'week' else 30
+            base = datetime.date.today()
+            date_list = [base - datetime.timedelta(days=x) for x in range(days_back)]
+            date_list.reverse()
+            
+            chart_labels = [d.strftime('%b %d') for d in date_list]
+            date_map = {d.strftime('%Y-%m-%d'): idx for idx, d in enumerate(date_list)}
+            
+            chart_received = [0] * days_back
+            chart_in_sla = [0] * days_back
+            chart_out_sla = [0] * days_back
+            
+            cursor.execute(f"SELECT created_at::DATE as dt, COUNT(*) as cnt FROM ticket WHERE 1=1 {time_filter} GROUP BY dt")
+            for r in cursor.fetchall():
+                d_str = str(r['dt'])
+                if d_str in date_map: chart_received[date_map[d_str]] = r['cnt']
+                
+            cursor.execute(f"SELECT resolved_at::DATE as dt, COUNT(*) as cnt FROM ticket WHERE status = 'Resolved' AND sla_breached = 0 {time_filter_resolved} GROUP BY dt")
+            for r in cursor.fetchall():
+                d_str = str(r['dt'])
+                if d_str in date_map: chart_in_sla[date_map[d_str]] = r['cnt']
+                
+            cursor.execute(f"SELECT resolved_at::DATE as dt, COUNT(*) as cnt FROM ticket WHERE status = 'Resolved' AND sla_breached = 1 {time_filter_resolved} GROUP BY dt")
+            for r in cursor.fetchall():
+                d_str = str(r['dt'])
+                if d_str in date_map: chart_out_sla[date_map[d_str]] = r['cnt']
+                
+        else: # timeframe == 'year'
+            months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+            chart_labels = months
+            chart_received = [0] * 12
+            chart_in_sla = [0] * 12
+            chart_out_sla = [0] * 12
+            
+            cursor.execute(f"SELECT EXTRACT(MONTH FROM created_at)::INTEGER as m, COUNT(*) as cnt FROM ticket WHERE 1=1 {time_filter} GROUP BY m")
+            for r in cursor.fetchall(): chart_received[r['m'] - 1] = r['cnt']
+            
+            cursor.execute(f"SELECT EXTRACT(MONTH FROM resolved_at)::INTEGER as m, COUNT(*) as cnt FROM ticket WHERE status = 'Resolved' AND sla_breached = 0 {time_filter_resolved} GROUP BY m")
+            for r in cursor.fetchall(): chart_in_sla[r['m'] - 1] = r['cnt']
+            
+            cursor.execute(f"SELECT EXTRACT(MONTH FROM resolved_at)::INTEGER as m, COUNT(*) as cnt FROM ticket WHERE status = 'Resolved' AND sla_breached = 1 {time_filter_resolved} GROUP BY m")
+            for r in cursor.fetchall(): chart_out_sla[r['m'] - 1] = r['cnt']
 
     stats = {
         "received": total,
         "resolved": resolved,
         "unresolved": unresolved,
-        "unassigned": unresolved // 3 if unresolved > 0 else 0,
-        "pending": unresolved // 2 if unresolved > 0 else 0,
-        "overdue": unresolved // 6 if unresolved > 0 else 0,
-        "due_today": 0,
-        "due_tomorrow": 0,
+        "unassigned": unassigned,
+        "pending": pending,
+        "overdue": overdue,
+        "due_today": due_today,
         "resolved_in_sla": resolved_in_sla,
         "resolved_outside_sla": resolved_outside_sla,
-        "avg_resolution_time": "14 min",
-        "min_resolution_time": "2 min",
-        "max_resolution_time": "45 min",
-        "hourly_received": hourly_received,
-        "hourly_resolved_in_sla": hourly_resolved_in_sla,
-        "hourly_resolved_outside_sla": hourly_resolved_outside_sla
+        "avg_resolution_time": avg_resolution_time,
+        "min_resolution_time": min_resolution_time,
+        "max_resolution_time": max_resolution_time,
+        "chart_labels": chart_labels,
+        "chart_data": {
+            "received": chart_received,
+            "resolved_in_sla": chart_in_sla,
+            "resolved_outside_sla": chart_out_sla
+        }
     }
     
     cursor.close()
