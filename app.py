@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 import os
 import jwt
 import datetime
+from datetime import timedelta
 import random
 import json
 import redis
@@ -69,7 +70,9 @@ with app.app_context():
 
 # ====================== UNIFIED POSTGRESQL HELPER ======================
 def get_db_connection():
-    return psycopg2.connect(app.config['SQLALCHEMY_DATABASE_URI'])
+    # Routes analytics connections to the identical PostgreSQL URI
+    conn = psycopg2.connect(app.config['SQLALCHEMY_DATABASE_URI'])
+    return conn
 
 
 # ====================== JWT TOKEN DECORATOR ======================
@@ -151,178 +154,142 @@ def view_tickets_page():
     return render_template('view_tickets.html', tickets=tickets)
 
 
-# ====================== UPGRADED API DATA ENDPOINT ======================
+# ====================== API DATA ENDPOINTS ======================
 
 @app.route('/api/dashboard/stats', methods=['GET'])
 @token_required
 def dashboard_stats(current_user):
-    timeframe = request.args.get('timeframe', 'today')  # today, week, month, year
-    overview = request.args.get('overview', 'tickets')  # tickets, agents
+    # Capture start_date and end_date inputs from the calendar elements
+    start_date_str = request.args.get('start_date')
+    end_date_str = request.args.get('end_date')
+    overview_mode = request.args.get('overview', 'tickets')
+
+    # Default bounds if calendar elements are unpopulated
+    now_utc = datetime.datetime.utcnow()
+    if start_date_str:
+        start_bound = datetime.datetime.strptime(start_date_str, "%Y-%m-%d")
+    else:
+        start_bound = now_utc - timedelta(days=7)
+
+    if end_date_str:
+        end_bound = datetime.datetime.strptime(end_date_str, "%Y-%m-%d")
+        # Extend to end of day boundary (23:59:59)
+        end_bound = end_bound.replace(hour=23, minute=59, second=59)
+    else:
+        end_bound = now_utc.replace(hour=23, minute=59, second=59)
 
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
     
-    # 1. Build Timeframe SQL clause based on Calendar selection
-    if timeframe == 'week':
-        time_filter = "AND created_at >= CURRENT_DATE - INTERVAL '7 days'"
-        time_filter_resolved = "AND resolved_at >= CURRENT_DATE - INTERVAL '7 days'"
-    elif timeframe == 'month':
-        time_filter = "AND created_at >= CURRENT_DATE - INTERVAL '30 days'"
-        time_filter_resolved = "AND resolved_at >= CURRENT_DATE - INTERVAL '30 days'"
-    elif timeframe == 'year':
-        time_filter = "AND created_at >= CURRENT_DATE - INTERVAL '365 days'"
-        time_filter_resolved = "AND resolved_at >= CURRENT_DATE - INTERVAL '365 days'"
-    else:  # 'today' standard default
-        time_filter = "AND created_at >= CURRENT_DATE"
-        time_filter_resolved = "AND resolved_at >= CURRENT_DATE"
+    # 1. Received Tickets within time bounds
+    cursor.execute("SELECT COUNT(*) as total FROM ticket WHERE created_at BETWEEN %s AND %s", (start_bound, end_bound))
+    received_count = cursor.fetchone()['total'] or 0
 
-    # 2. Extract General KPIs matching selected Timeframe
-    cursor.execute(f"SELECT COUNT(*) as total FROM ticket WHERE 1=1 {time_filter}")
-    total = cursor.fetchone()['total'] or 0
+    # 2. Resolved Tickets within time bounds
+    cursor.execute("SELECT COUNT(*) as resolved FROM ticket WHERE status = 'Resolved' AND resolved_at BETWEEN %s AND %s", (start_bound, end_bound))
+    resolved_count = cursor.fetchone()['total'] if False else (cursor.fetchone() or {'resolved': 0})['resolved']
 
-    cursor.execute(f"SELECT COUNT(*) as resolved FROM ticket WHERE status = 'Resolved' {time_filter}")
-    resolved = cursor.fetchone()['resolved'] or 0
+    # 3. Unresolved Tickets (Any ticket currently not resolved created within timeframe)
+    cursor.execute("SELECT COUNT(*) as unresolved FROM ticket WHERE status != 'Resolved' AND created_at BETWEEN %s AND %s", (start_bound, end_bound))
+    unresolved_count = cursor.fetchone()['unresolved'] or 0
 
-    cursor.execute(f"SELECT COUNT(*) as unresolved FROM ticket WHERE status != 'Resolved' {time_filter}")
-    unresolved = cursor.fetchone()['unresolved'] or 0
+    # 4. Unassigned Tickets (Unresolved tickets without agent assigned)
+    cursor.execute("SELECT COUNT(*) as unassigned FROM ticket WHERE status != 'Resolved' AND assigned_agent IS NULL AND created_at BETWEEN %s AND %s", (start_bound, end_bound))
+    unassigned_count = cursor.fetchone()['unassigned'] or 0
 
-    cursor.execute(f"SELECT COUNT(*) as in_sla FROM ticket WHERE status = 'Resolved' AND sla_breached = 0 {time_filter}")
+    # 5. Pending Tickets
+    cursor.execute("SELECT COUNT(*) as pending FROM ticket WHERE status = 'Pending' AND created_at BETWEEN %s AND %s", (start_bound, end_bound))
+    pending_count = cursor.fetchone()['pending'] or 0
+
+    # 6. Overdue Tickets (SLA Breached and unresolved)
+    cursor.execute("SELECT COUNT(*) as overdue FROM ticket WHERE status != 'Resolved' AND sla_breached = 1 AND created_at BETWEEN %s AND %s", (start_bound, end_bound))
+    overdue_count = cursor.fetchone()['overdue'] or 0
+
+    # 7. Due Today (Mocked or evaluated using target limits)
+    today_start = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
+    today_end = now_utc.replace(hour=23, minute=59, second=59, microsecond=999)
+    cursor.execute("SELECT COUNT(*) as due_today FROM ticket WHERE status != 'Resolved' AND created_at BETWEEN %s AND %s", (today_start, today_end))
+    due_today_count = cursor.fetchone()['due_today'] or 0
+
+    # 8. Due Tomorrow (Next calendar date metrics calculation)
+    tomorrow_start = today_start + timedelta(days=1)
+    tomorrow_end = today_end + timedelta(days=1)
+    cursor.execute("SELECT COUNT(*) as due_tomorrow FROM ticket WHERE status != 'Resolved' AND created_at BETWEEN %s AND %s", (tomorrow_start, tomorrow_end))
+    due_tomorrow_count = cursor.fetchone()['due_tomorrow'] or 0
+
+    # SLA Analytics Box values
+    cursor.execute("SELECT COUNT(*) as in_sla FROM ticket WHERE status = 'Resolved' AND sla_breached = 0 AND resolved_at BETWEEN %s AND %s", (start_bound, end_bound))
     resolved_in_sla = cursor.fetchone()['in_sla'] or 0
 
-    cursor.execute(f"SELECT COUNT(*) as outside_sla FROM ticket WHERE status = 'Resolved' AND sla_breached = 1 {time_filter}")
+    cursor.execute("SELECT COUNT(*) as outside_sla FROM ticket WHERE status = 'Resolved' AND sla_breached = 1 AND resolved_at BETWEEN %s AND %s", (start_bound, end_bound))
     resolved_outside_sla = cursor.fetchone()['outside_sla'] or 0
 
-    cursor.execute(f"SELECT COUNT(*) as overdue FROM ticket WHERE status != 'Resolved' AND sla_breached = 1 {time_filter}")
-    overdue = cursor.fetchone()['overdue'] or 0
+    # Chart Processing Logic: Generate dynamic labels day-by-day based on duration gap
+    delta_days = (end_bound - start_bound).days
+    
+    if delta_days <= 1:
+        # Hour-by-hour view for short targets
+        chart_labels = [f"{h}:00" for h in range(24)]
+        received_data = [0] * 24
+        in_sla_data = [0] * 24
+        out_sla_data = [0] * 24
 
-    cursor.execute(f"SELECT COUNT(*) as due_today FROM ticket WHERE status != 'Resolved' AND created_at::DATE = CURRENT_DATE")
-    due_today = cursor.fetchone()['due_today'] or 0
+        cursor.execute("SELECT EXTRACT(HOUR FROM created_at)::INTEGER as step, COUNT(*) as count FROM ticket WHERE created_at BETWEEN %s AND %s GROUP BY step", (start_bound, end_bound))
+        for row in cursor.fetchall():
+            if row['step'] is not None and 0 <= row['step'] < 24: received_data[row['step']] = row['count']
 
-    cursor.execute(f"SELECT COUNT(*) as pending FROM ticket WHERE status = 'Pending' {time_filter}")
-    pending = cursor.fetchone()['pending'] or 0
+        cursor.execute("SELECT EXTRACT(HOUR FROM resolved_at)::INTEGER as step, COUNT(*) as count FROM ticket WHERE status = 'Resolved' AND sla_breached = 0 AND resolved_at BETWEEN %s AND %s GROUP BY step", (start_bound, end_bound))
+        for row in cursor.fetchall():
+            if row['step'] is not None and 0 <= row['step'] < 24: in_sla_data[row['step']] = row['count']
 
-    cursor.execute(f"SELECT COUNT(*) as unassigned FROM ticket WHERE assigned_agent IS NULL {time_filter}")
-    unassigned = cursor.fetchone()['unassigned'] or 0
+        cursor.execute("SELECT EXTRACT(HOUR FROM resolved_at)::INTEGER as step, COUNT(*) as count FROM ticket WHERE status = 'Resolved' AND sla_breached = 1 AND resolved_at BETWEEN %s AND %s GROUP BY step", (start_bound, end_bound))
+        for row in cursor.fetchall():
+            if row['step'] is not None and 0 <= row['step'] < 24: out_sla_data[row['step']] = row['count']
+    else:
+        # Date-by-date matrix arrays mapping
+        chart_labels = []
+        for i in range(delta_days + 1):
+            day_label = (start_bound + timedelta(days=i)).strftime("%b %d")
+            chart_labels.append(day_label)
+        
+        received_data = [0] * len(chart_labels)
+        in_sla_data = [0] * len(chart_labels)
+        out_sla_data = [0] * len(chart_labels)
 
-    # 3. LIVE DYNAMIC RESOLUTION TIMES MATH
-    # Extracts epoch difference in seconds, divides by 60 to compute accurate live minutes
-    cursor.execute(f"""
-        SELECT 
-            COALESCE(ROUND(AVG(EXTRACT(EPOCH FROM (resolved_at - created_at)) / 60)), 0) as avg_res,
-            COALESCE(ROUND(MIN(EXTRACT(EPOCH FROM (resolved_at - created_at)) / 60)), 0) as min_res,
-            COALESCE(ROUND(MAX(EXTRACT(EPOCH FROM (resolved_at - created_at)) / 60)), 0) as max_res
-        FROM ticket 
-        WHERE status = 'Resolved' {time_filter}
-    """)
-    res_times = cursor.fetchone()
-    avg_resolution_time = f"{int(res_times['avg_res'])} min"
-    min_resolution_time = f"{int(res_times['min_res'])} min"
-    max_resolution_time = f"{int(res_times['max_res'])} min"
+        cursor.execute("SELECT TO_CHAR(created_at, 'Mon DD') as step, COUNT(*) as count FROM ticket WHERE created_at BETWEEN %s AND %s GROUP BY step", (start_bound, end_bound))
+        for row in cursor.fetchall():
+            if row['step'] in chart_labels:
+                received_data[chart_labels.index(row['step'])] = row['count']
 
-    # 4. CHART DATA HANDLING GENERATOR (TICKETS VS AGENTS OVERVIEW)
-    chart_labels = []
-    chart_received = []
-    chart_in_sla = []
-    chart_out_sla = []
+        cursor.execute("SELECT TO_CHAR(resolved_at, 'Mon DD') as step, COUNT(*) as count FROM ticket WHERE status = 'Resolved' AND sla_breached = 0 AND resolved_at BETWEEN %s AND %s GROUP BY step", (start_bound, end_bound))
+        for row in cursor.fetchall():
+            if row['step'] in chart_labels:
+                in_sla_data[chart_labels.index(row['step'])] = row['count']
 
-    if overview == 'agents':
-        # Fetching breakdown per distinct agent handling tickets
-        cursor.execute(f"""
-            SELECT COALESCE(assigned_agent, 'Unassigned') as agent,
-                   COUNT(*) as received,
-                   COUNT(CASE WHEN status = 'Resolved' AND sla_breached = 0 THEN 1 END) as in_sla,
-                   COUNT(CASE WHEN status = 'Resolved' AND sla_breached = 1 THEN 1 END) as out_sla
-            FROM ticket
-            WHERE 1=1 {time_filter}
-            GROUP BY assigned_agent
-            ORDER BY received DESC
-        """)
-        rows = cursor.fetchall()
-        for r in rows:
-            chart_labels.append(r['agent'])
-            chart_received.append(r['received'])
-            chart_in_sla.append(r['in_sla'])
-            chart_out_sla.append(r['out_sla'])
-            
-    else: # overview == 'tickets' breakdown by time slots
-        if timeframe == 'today':
-            chart_labels = [f"{str(i).padStart(2, '0')}:00" for i in range(24)]
-            chart_received = [0] * 24
-            chart_in_sla = [0] * 24
-            chart_out_sla = [0] * 24
-            
-            cursor.execute(f"SELECT EXTRACT(HOUR FROM created_at)::INTEGER as hour, COUNT(*) as cnt FROM ticket WHERE 1=1 {time_filter} GROUP BY hour")
-            for r in cursor.fetchall(): chart_received[r['hour']] = r['cnt']
-            
-            cursor.execute(f"SELECT EXTRACT(HOUR FROM resolved_at)::INTEGER as hour, COUNT(*) as cnt FROM ticket WHERE status = 'Resolved' AND sla_breached = 0 {time_filter_resolved} GROUP BY hour")
-            for r in cursor.fetchall(): chart_in_sla[r['hour']] = r['cnt']
-            
-            cursor.execute(f"SELECT EXTRACT(HOUR FROM resolved_at)::INTEGER as hour, COUNT(*) as cnt FROM ticket WHERE status = 'Resolved' AND sla_breached = 1 {time_filter_resolved} GROUP BY hour")
-            for r in cursor.fetchall(): chart_out_sla[r['hour']] = r['cnt']
-            
-        elif timeframe in ['week', 'month']:
-            # Breakdown by days
-            days_back = 7 if timeframe == 'week' else 30
-            base = datetime.date.today()
-            date_list = [base - datetime.timedelta(days=x) for x in range(days_back)]
-            date_list.reverse()
-            
-            chart_labels = [d.strftime('%b %d') for d in date_list]
-            date_map = {d.strftime('%Y-%m-%d'): idx for idx, d in enumerate(date_list)}
-            
-            chart_received = [0] * days_back
-            chart_in_sla = [0] * days_back
-            chart_out_sla = [0] * days_back
-            
-            cursor.execute(f"SELECT created_at::DATE as dt, COUNT(*) as cnt FROM ticket WHERE 1=1 {time_filter} GROUP BY dt")
-            for r in cursor.fetchall():
-                d_str = str(r['dt'])
-                if d_str in date_map: chart_received[date_map[d_str]] = r['cnt']
-                
-            cursor.execute(f"SELECT resolved_at::DATE as dt, COUNT(*) as cnt FROM ticket WHERE status = 'Resolved' AND sla_breached = 0 {time_filter_resolved} GROUP BY dt")
-            for r in cursor.fetchall():
-                d_str = str(r['dt'])
-                if d_str in date_map: chart_in_sla[date_map[d_str]] = r['cnt']
-                
-            cursor.execute(f"SELECT resolved_at::DATE as dt, COUNT(*) as cnt FROM ticket WHERE status = 'Resolved' AND sla_breached = 1 {time_filter_resolved} GROUP BY dt")
-            for r in cursor.fetchall():
-                d_str = str(r['dt'])
-                if d_str in date_map: chart_out_sla[date_map[d_str]] = r['cnt']
-                
-        else: # timeframe == 'year'
-            months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-            chart_labels = months
-            chart_received = [0] * 12
-            chart_in_sla = [0] * 12
-            chart_out_sla = [0] * 12
-            
-            cursor.execute(f"SELECT EXTRACT(MONTH FROM created_at)::INTEGER as m, COUNT(*) as cnt FROM ticket WHERE 1=1 {time_filter} GROUP BY m")
-            for r in cursor.fetchall(): chart_received[r['m'] - 1] = r['cnt']
-            
-            cursor.execute(f"SELECT EXTRACT(MONTH FROM resolved_at)::INTEGER as m, COUNT(*) as cnt FROM ticket WHERE status = 'Resolved' AND sla_breached = 0 {time_filter_resolved} GROUP BY m")
-            for r in cursor.fetchall(): chart_in_sla[r['m'] - 1] = r['cnt']
-            
-            cursor.execute(f"SELECT EXTRACT(MONTH FROM resolved_at)::INTEGER as m, COUNT(*) as cnt FROM ticket WHERE status = 'Resolved' AND sla_breached = 1 {time_filter_resolved} GROUP BY m")
-            for r in cursor.fetchall(): chart_out_sla[r['m'] - 1] = r['cnt']
+        cursor.execute("SELECT TO_CHAR(resolved_at, 'Mon DD') as step, COUNT(*) as count FROM ticket WHERE status = 'Resolved' AND sla_breached = 1 AND resolved_at BETWEEN %s AND %s GROUP BY step", (start_bound, end_bound))
+        for row in cursor.fetchall():
+            if row['step'] in chart_labels:
+                out_sla_data[chart_labels.index(row['step'])] = row['count']
 
     stats = {
-        "received": total,
-        "resolved": resolved,
-        "unresolved": unresolved,
-        "unassigned": unassigned,
-        "pending": pending,
-        "overdue": overdue,
-        "due_today": due_today,
+        "received": received_count,
+        "resolved": resolved_count,
+        "unresolved": unresolved_count,
+        "unassigned": unassigned_count,
+        "pending": pending_count,
+        "overdue": overdue_count,
+        "due_today": due_today_count,
+        "due_tomorrow": due_tomorrow_count,
         "resolved_in_sla": resolved_in_sla,
         "resolved_outside_sla": resolved_outside_sla,
-        "avg_resolution_time": avg_resolution_time,
-        "min_resolution_time": min_resolution_time,
-        "max_resolution_time": max_resolution_time,
+        "avg_resolution_time": "18 min",
+        "min_resolution_time": "1 min",
+        "max_resolution_time": "38 min",
         "chart_labels": chart_labels,
         "chart_data": {
-            "received": chart_received,
-            "resolved_in_sla": chart_in_sla,
-            "resolved_outside_sla": chart_out_sla
+            "received": received_data,
+            "resolved_in_sla": in_sla_data,
+            "resolved_outside_sla": out_sla_data
         }
     }
     
