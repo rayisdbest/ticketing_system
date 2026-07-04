@@ -271,6 +271,21 @@ def dashboard_stats(current_user):
             if row['step'] in chart_labels:
                 out_sla_data[chart_labels.index(row['step'])] = row['count']
 
+    # Calculate Dynamic Resolution Time Analytics (in minutes)
+    cursor.execute("""
+        SELECT 
+            COALESCE(AVG(EXTRACT(EPOCH FROM (resolved_at - created_at))/60), 0)::INTEGER as avg_res,
+            COALESCE(MIN(EXTRACT(EPOCH FROM (resolved_at - created_at))/60), 0)::INTEGER as min_res,
+            COALESCE(MAX(EXTRACT(EPOCH FROM (resolved_at - created_at))/60), 0)::INTEGER as max_res
+        FROM ticket 
+        WHERE status = 'Resolved' AND resolved_at BETWEEN %s AND %s
+    """, (start_bound, end_bound))
+    
+    res_metrics = cursor.fetchone()
+    avg_res_time = f"{res_metrics['avg_res']} min"
+    min_res_time = f"{res_metrics['min_res']} min"
+    max_res_time = f"{res_metrics['max_res']} min"
+
     stats = {
         "received": received_count,
         "resolved": resolved_count,
@@ -282,9 +297,9 @@ def dashboard_stats(current_user):
         "due_tomorrow": due_tomorrow_count,
         "resolved_in_sla": resolved_in_sla,
         "resolved_outside_sla": resolved_outside_sla,
-        "avg_resolution_time": "18 min",
-        "min_resolution_time": "1 min",
-        "max_resolution_time": "38 min",
+        "avg_resolution_time": avg_res_time,
+        "min_resolution_time": min_res_time,
+        "max_resolution_time": max_res_time,
         "chart_labels": chart_labels,
         "chart_data": {
             "received": received_data,
