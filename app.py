@@ -38,8 +38,8 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 db = SQLAlchemy(app)
 
 # ====================== ROLE CONFIG ======================
-ADMIN_EMAILS = {"imran.sattar@nagariatextiles.com", "manager@nagariatextiles.com"}
-IT_AGENT_EMAILS = {"tech1@nagariatextiles.com", "support@nagariatextiles.com"}
+ADMIN_EMAILS = {"imran.sattar@nagariatextiles.com", "kashan.iqbal@nagariatextiles.com"}
+IT_AGENT_EMAILS = {"nawab.khan@nagariatextiles.com", "it@nagariatextiles.com"}
 
 redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
 
@@ -285,7 +285,15 @@ def dashboard_stats(current_user):
     avg_res_time = f"{res_metrics['avg_res']} min"
     min_res_time = f"{res_metrics['min_res']} min"
     max_res_time = f"{res_metrics['max_res']} min"
+    # Fetch exact counts based on user-selected priority fields
+    cursor.execute("SELECT COUNT(*) as high FROM ticket WHERE priority = 'High' AND created_at BETWEEN %s AND %s", (start_bound, end_bound))
+    priority_high = cursor.fetchone()['high'] or 0
 
+    cursor.execute("SELECT COUNT(*) as medium FROM ticket WHERE priority = 'Medium' AND created_at BETWEEN %s AND %s", (start_bound, end_bound))
+    priority_medium = cursor.fetchone()['medium'] or 0
+
+    cursor.execute("SELECT COUNT(*) as low FROM ticket WHERE priority = 'Low' AND created_at BETWEEN %s AND %s", (start_bound, end_bound))
+    priority_low = cursor.fetchone()['low'] or 0
     stats = {
         "received": received_count,
         "resolved": resolved_count,
@@ -301,6 +309,9 @@ def dashboard_stats(current_user):
         "min_resolution_time": min_res_time,
         "max_resolution_time": max_res_time,
         "chart_labels": chart_labels,
+        "priority_high": priority_high,
+        "priority_medium": priority_medium,
+        "priority_low": priority_low,
         "chart_data": {
             "received": received_data,
             "resolved_in_sla": in_sla_data,

@@ -190,16 +190,30 @@
                 options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: xAxisScales, y: yAxisScales } }
             });
 
-            // --- 3. Priority Chart Update (Real API Metrics) ---
+            // --- 3. Priority Chart Update (Real Priority Level Metrics) ---
             const priCtx = document.getElementById('priorityChart').getContext('2d');
             if (priorityChart) priorityChart.destroy();
             priorityChart = new Chart(priCtx, {
                 type: 'bar',
                 data: {
-                    labels: ['High (Overdue)', 'Medium (Pending)', 'Low (Unassigned)'],
-                    datasets: [{ data: [data.overdue || 0, data.pending || 0, data.unassigned || 0], backgroundColor: createGradient(priCtx, '#fb923c', '#ea580c'), borderRadius: 6, barThickness: 45 }]
+                    labels: ['High', 'Medium', 'Low'],
+                    datasets: [{ 
+                        data: [
+                            data.priority_high || 0, 
+                            data.priority_medium || 0, 
+                            data.priority_low || 0
+                        ], 
+                        backgroundColor: createGradient(priCtx, '#fb923c', '#ea580c'), 
+                        borderRadius: 6, 
+                        barThickness: 45 
+                    }]
                 },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: xAxisScales, y: yAxisScales } }
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false, 
+                    plugins: { legend: { display: false } }, 
+                    scales: { x: xAxisScales, y: yAxisScales } 
+                }
             });
 
             // --- 4. Status Chart Update (Real API Metrics) ---
