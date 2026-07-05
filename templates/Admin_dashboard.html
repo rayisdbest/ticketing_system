@@ -62,11 +62,7 @@
           <option value="Power house">Power house</option>
           <option value="Yarn">Yarn</option>
         </select>
-        <select class="border border-slate-300 text-slate-600 bg-white px-3 py-1.5 rounded shadow-sm text-sm outline-none">
-          <option value="All Agents">All Agents</option>
-          <option value="Nawab Khan">Nawab Khan</option>
-          <option value="IT Support">IT Support</option>  
-        </select>
+        
       </div>
     </div>
     <div class="flex items-center gap-3">
@@ -234,12 +230,12 @@ function updateChartTypeIcons() {
 async function fetchDashboardStats() {
   const token = localStorage.getItem('token');
   
-  // Capture values from date controls and the new group element
-  const startEl = document.getElementById('startDateInput');
-  const endEl = document.getElementById('endDateInput');
+  // FIXED: Standardized target input element pointers matching exact document layout IDs
+  const startEl = document.getElementById('startDate');
+  const endEl = document.getElementById('endDate');
   const groupEl = document.getElementById('groupFilter');
 
-  let url = '/api/dashboard/stats?';
+  let url = `/api/dashboard/stats?overview=${currentOverview}&`;
   if (startEl && startEl.value) url += `start_date=${startEl.value}&`;
   if (endEl && endEl.value) url += `end_date=${endEl.value}&`;
   if (groupEl && groupEl.value) url += `group=${encodeURIComponent(groupEl.value)}`;
@@ -250,28 +246,30 @@ async function fetchDashboardStats() {
     });
     if (!res.ok) return;
     const data = await res.json();
+    dashboardDataCache = data;
 
-    // Map counts to metrics indicators
-    document.getElementById('totalReceived').innerText = data.received;
-    document.getElementById('totalResolved').innerText = data.resolved;
-    document.getElementById('unresolvedTickets').innerText = data.unresolved;
-    document.getElementById('unassignedTickets').innerText = data.unassigned;
-    document.getElementById('pendingTickets').innerText = data.pending;
-    document.getElementById('overdueTickets').innerText = data.overdue;
-    document.getElementById('dueToday').innerText = data.due_today;
-    document.getElementById('dueTomorrow').innerText = data.due_tomorrow;
+    // FIXED: Synced IDs to map successfully to your HTML element layout structure card selectors
+    document.getElementById('stat-received_top').innerText = data.received;
+    document.getElementById('stat-resolved_top').innerText = data.resolved;
+    document.getElementById('stat-unresolved').innerText = data.unresolved;
+    document.getElementById('stat-unassigned').innerText = data.unassigned;
+    document.getElementById('stat-pending').innerText = data.pending;
+    document.getElementById('stat-overdue').innerText = data.overdue;
+    document.getElementById('stat-due_today').innerText = data.due_today;
+    document.getElementById('stat-due_tomorrow').innerText = data.due_tomorrow;
     
-    // SLA Boxes mapping 
-    document.getElementById('inSlaCount').innerText = data.resolved_in_sla;
-    document.getElementById('outSlaCount').innerText = data.resolved_outside_sla;
+    // Synced middle overview sub-counters layout rows fields
+    document.getElementById('chart-val-received').innerText = data.received;
+    document.getElementById('chart-val-resolved_in_sla').innerText = data.resolved_in_sla;
+    document.getElementById('chart-val-resolved_outside_sla').innerText = data.resolved_outside_sla;
 
-    // Live Resolution calculation metrics display elements mapping
+    // Live Resolution metrics display targets mapping execution
     if(document.getElementById('avgRes')) document.getElementById('avgRes').innerText = data.avg_resolution_time;
     if(document.getElementById('minRes')) document.getElementById('minRes').innerText = data.min_resolution_time;
     if(document.getElementById('maxRes')) document.getElementById('maxRes').innerText = data.max_resolution_time;
 
-    // Re-draw chart nodes layout structure smoothly
-    renderMixedChart(data.chart_labels, data.chart_data.received, data.chart_data.resolved_in_sla, data.chart_data.resolved_outside_sla);
+    // FIXED: Swapped out broken call with your active rendering wrapper function call
+    renderChart(data);
 
   } catch (err) {
     console.error("Error updating filtering statistics:", err);
@@ -325,7 +323,6 @@ function renderChart(data) {
         x: { grid: { display: false } }
       },
       plugins: {
-        // Separated Chart Key layout matching reference image metrics
         legend: { 
           display: true, 
           position: 'top',
@@ -356,6 +353,14 @@ function renderChart(data) {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
+    // FIXED: Safely pull saved user structure metadata from state cache storage layer and map into navigation layout row
+    const userObj = JSON.parse(localStorage.getItem('user') || '{}');
+    const displayUsername = userObj.username || 'Administrator';
+    const navUserEl = document.getElementById('nav-username');
+    if (navUserEl) {
+        navUserEl.innerText = displayUsername;
+    }
+
     updateChartTypeIcons();
     const today = new Date();
     const lastWeek = new Date(today);

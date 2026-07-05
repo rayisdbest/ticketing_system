@@ -159,12 +159,12 @@ def view_tickets_page():
 @app.route('/api/dashboard/stats', methods=['GET'])
 @token_required
 def dashboard_stats(current_user):
-    # Capture inputs from frontend parameters
     start_date_str = request.args.get('start_date')
     end_date_str = request.args.get('end_date')
-    selected_group = request.args.get('group')  # <-- Capture group select parameter
+    selected_group = request.args.get('group')
+    overview = request.args.get('overview', 'tickets')  # FIX: Restored overview parameter!
 
-    # Default bounds if calendar elements are unpopulated
+    # Default bounds
     now_utc = datetime.datetime.utcnow()
     if start_date_str:
         start_bound = datetime.datetime.strptime(start_date_str, "%Y-%m-%d")
@@ -180,7 +180,7 @@ def dashboard_stats(current_user):
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
     
-    # Dynamic SQL builder helper for filtering by group (Fixed with double-quoted "group")
+    # Dynamic SQL builder helper for filtering by group
     if selected_group and selected_group != "All Groups":
         group_clause = 'AND "group" = %s'
         params_base = (start_bound, end_bound, selected_group)
@@ -188,31 +188,31 @@ def dashboard_stats(current_user):
         group_clause = ""
         params_base = (start_bound, end_bound)
 
-    # 1. Received Tickets
+    # 1. Received
     cursor.execute(f'SELECT COUNT(*) as total FROM ticket WHERE created_at BETWEEN %s AND %s {group_clause}', params_base)
     received_count = cursor.fetchone()['total'] or 0
 
-    # 2. Resolved Tickets 
+    # 2. Resolved
     cursor.execute(f"SELECT COUNT(*) as resolved FROM ticket WHERE status = 'Resolved' AND resolved_at BETWEEN %s AND %s {group_clause}", params_base)
-    resolved_count = (cursor.fetchone() or {'resolved': 0})['resolved']
+    resolved_count = cursor.fetchone()['resolved'] or 0
 
-    # 3. Unresolved Tickets
+    # 3. Unresolved
     cursor.execute(f"SELECT COUNT(*) as unresolved FROM ticket WHERE status != 'Resolved' AND created_at BETWEEN %s AND %s {group_clause}", params_base)
     unresolved_count = cursor.fetchone()['unresolved'] or 0
 
-    # 4. Unassigned Tickets
+    # 4. Unassigned
     cursor.execute(f"SELECT COUNT(*) as unassigned FROM ticket WHERE status != 'Resolved' AND assigned_agent IS NULL AND created_at BETWEEN %s AND %s {group_clause}", params_base)
     unassigned_count = cursor.fetchone()['unassigned'] or 0
 
-    # 5. Pending Tickets
+    # 5. Pending
     cursor.execute(f"SELECT COUNT(*) as pending FROM ticket WHERE status = 'Pending' AND created_at BETWEEN %s AND %s {group_clause}", params_base)
     pending_count = cursor.fetchone()['pending'] or 0
 
-    # 6. Overdue Tickets
+    # 6. Overdue
     cursor.execute(f"SELECT COUNT(*) as overdue FROM ticket WHERE status != 'Resolved' AND sla_breached = 1 AND created_at BETWEEN %s AND %s {group_clause}", params_base)
     overdue_count = cursor.fetchone()['overdue'] or 0
 
-   # 7. Due Today 
+    # 7. Due Today 
     today_start = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
     today_end = now_utc.replace(hour=23, minute=59, second=59, microsecond=999)
     if selected_group and selected_group != "All Groups":
@@ -229,6 +229,10 @@ def dashboard_stats(current_user):
     else:
         cursor.execute("SELECT COUNT(*) as due_tomorrow FROM ticket WHERE status != 'Resolved' AND created_at BETWEEN %s AND %s", (tomorrow_start, tomorrow_end))
     due_tomorrow_count = cursor.fetchone()['due_tomorrow'] or 0
+
+    # SLA Analytics Box values
+    cursor.execute(f"SELECT COUNT(*) as in_sla FROM ticket WHERE status = 'Resolved' AND sla_breached = 0 AND resolved_at BETWEEN %s AND %s {group_clause}", params_base)
+    resolved_in_sla = cursor.fetchone()['in_sla'] or 0
 
     cursor.execute(f"SELECT COUNT(*) as outside_sla FROM ticket WHERE status = 'Resolved' AND sla_breached = 1 AND resolved_at BETWEEN %s AND %s {group_clause}", params_base)
     resolved_outside_sla = cursor.fetchone()['outside_sla'] or 0
@@ -247,61 +251,111 @@ def dashboard_stats(current_user):
     min_res_time = f"{res_metrics['min_res']} min"
     max_res_time = f"{res_metrics['max_res']} min"
 
-    # Priority Charts Group Counting
-    cursor.execute(f'SELECT COUNT(*) as high FROM ticket WHERE priority = \'High\' AND created_at BETWEEN %s AND %s {group_clause}', params_base)
+    # Priority Charts
+    cursor.execute(f"SELECT COUNT(*) as high FROM ticket WHERE priority = 'High' AND created_at BETWEEN %s AND %s {group_clause}", params_base)
     priority_high = cursor.fetchone()['high'] or 0
-    cursor.execute(f'SELECT COUNT(*) as medium FROM ticket WHERE priority = \'Medium\' AND created_at BETWEEN %s AND %s {group_clause}', params_base)
+    cursor.execute(f"SELECT COUNT(*) as medium FROM ticket WHERE priority = 'Medium' AND created_at BETWEEN %s AND %s {group_clause}", params_base)
     priority_medium = cursor.fetchone()['medium'] or 0
-    cursor.execute(f'SELECT COUNT(*) as low FROM ticket WHERE priority = \'Low\' AND created_at BETWEEN %s AND %s {group_clause}', params_base)
+    cursor.execute(f"SELECT COUNT(*) as low FROM ticket WHERE priority = 'Low' AND created_at BETWEEN %s AND %s {group_clause}", params_base)
     priority_low = cursor.fetchone()['low'] or 0
 
-    # Category Charts Group Counting
-    cursor.execute(f'SELECT COUNT(*) as problem FROM ticket WHERE category ILIKE \'Problem\' AND created_at BETWEEN %s AND %s {group_clause}', params_base)
+    # Category Charts
+    cursor.execute(f"SELECT COUNT(*) as problem FROM ticket WHERE category ILIKE 'Problem' AND created_at BETWEEN %s AND %s {group_clause}", params_base)
     category_problem = cursor.fetchone()['problem'] or 0
-    cursor.execute(f'SELECT COUNT(*) as request FROM ticket WHERE category ILIKE \'Request\' AND created_at BETWEEN %s AND %s {group_clause}', params_base)
+    cursor.execute(f"SELECT COUNT(*) as request FROM ticket WHERE category ILIKE 'Request' AND created_at BETWEEN %s AND %s {group_clause}", params_base)
     category_request = cursor.fetchone()['request'] or 0
 
-    # Chart Processing Logic: Matrix steps tracking
-    delta_days = (end_bound - start_bound).days
-    
-    if delta_days <= 1:
-        chart_labels = [f"{h}:00" for h in range(24)]
-        received_data = [0] * 24
-        in_sla_data = [0] * 24
-        out_sla_data = [0] * 24
+    # FIX: Restored Chart Processing Logic (Handles both Tickets Overview and Agents Overview perfectly)
+    chart_labels = []
+    received_data = []
+    in_sla_data = []
+    out_sla_data = []
 
-        cursor.execute(f"SELECT EXTRACT(HOUR FROM created_at)::INTEGER as step, COUNT(*) as count FROM ticket WHERE created_at BETWEEN %s AND %s {group_clause} GROUP BY step", params_base)
-        for row in cursor.fetchall():
-            if row['step'] is not None and 0 <= row['step'] < 24: received_data[row['step']] = row['count']
-
-        cursor.execute(f"SELECT EXTRACT(HOUR FROM resolved_at)::INTEGER as step, COUNT(*) as count FROM ticket WHERE status = 'Resolved' AND sla_breached = 0 AND resolved_at BETWEEN %s AND %s {group_clause} GROUP BY step", params_base)
-        for row in cursor.fetchall():
-            if row['step'] is not None and 0 <= row['step'] < 24: in_sla_data[row['step']] = row['count']
-
-        cursor.execute(f"SELECT EXTRACT(HOUR FROM resolved_at)::INTEGER as step, COUNT(*) as count FROM ticket WHERE status = 'Resolved' AND sla_breached = 1 AND resolved_at BETWEEN %s AND %s {group_clause} GROUP BY step", params_base)
-        for row in cursor.fetchall():
-            if row['step'] is not None and 0 <= row['step'] < 24: out_sla_data[row['step']] = row['count']
-    else:
-        chart_labels = []
-        for i in range(delta_days + 1):
-            day_label = (start_bound + timedelta(days=i)).strftime("%b %d")
-            chart_labels.append(day_label)
+    if overview == 'agents':
+        # 1. Fetch ALL structural agents available globally inside the storage layer
+        cursor.execute("SELECT DISTINCT assigned_agent FROM ticket WHERE assigned_agent IS NOT NULL")
+        all_agents = [row if isinstance(row, str) else (row['assigned_agent'] if isinstance(row, dict) else row[0]) for row in cursor.fetchall()]
         
-        received_data = [0] * len(chart_labels)
-        in_sla_data = [0] * len(chart_labels)
-        out_sla_data = [0] * len(chart_labels)
+        # Ensure standard active agents exist inside the framework (Removed Unassigned here)
+        for required_agent in ["IT Support", "Nawab Khan"]:
+            if required_agent not in all_agents:
+                all_agents.append(required_agent)
+            
+        # 2. Build template mapping with defaults to prevent filter drops
+        agent_stats = {agent: {'received': 0, 'in_sla': 0, 'out_sla': 0} for agent in all_agents}
+        
+        # 3. Gather filtered ticket metrics for active departments/intervals
+        cursor.execute(f"""
+            SELECT COALESCE(assigned_agent, 'Unassigned') as agent,
+                   COUNT(*) as received,
+                   COUNT(CASE WHEN status = 'Resolved' AND sla_breached = 0 THEN 1 END) as in_sla,
+                   COUNT(CASE WHEN status = 'Resolved' AND sla_breached = 1 THEN 1 END) as out_sla
+            FROM ticket
+            WHERE created_at BETWEEN %s AND %s {group_clause}
+            GROUP BY assigned_agent
+        """, params_base)
+        
+        # 4. Map active metrics counts onto structural labels safely
+        for r in cursor.fetchall():
+            agent = r['agent'] if isinstance(r, dict) else r[0]
+            rec = r['received'] if isinstance(r, dict) else r[1]
+            i_sla = r['in_sla'] if isinstance(r, dict) else r[2]
+            o_sla = r['out_sla'] if isinstance(r, dict) else r[3]
+            
+            if agent not in agent_stats:
+                agent_stats[agent] = {'received': 0, 'in_sla': 0, 'out_sla': 0}
+            agent_stats[agent]['received'] = rec
+            agent_stats[agent]['in_sla'] = i_sla
+            agent_stats[agent]['out_sla'] = o_sla
+            
+        # 5. Sort agents alphabetically and DO NOT append 'Unassigned' back to the list
+        sorted_agents = sorted([a for a in agent_stats.keys() if a != 'Unassigned'])
+        
+        # 6. Populate graph datasets only for the real, actual agents
+        for agent in sorted_agents:
+            chart_labels.append(agent)
+            received_data.append(agent_stats[agent]['received'])
+            in_sla_data.append(agent_stats[agent]['in_sla'])
+            out_sla_data.append(agent_stats[agent]['out_sla'])
+    else:
+        delta_days = (end_bound - start_bound).days
+        if delta_days <= 1:
+            chart_labels = [f"{h}:00" for h in range(24)]
+            received_data = [0] * 24
+            in_sla_data = [0] * 24
+            out_sla_data = [0] * 24
 
-        cursor.execute(f"SELECT TO_CHAR(created_at, 'Mon DD') as step, COUNT(*) as count FROM ticket WHERE created_at BETWEEN %s AND %s {group_clause} GROUP BY step", params_base)
-        for row in cursor.fetchall():
-            if row['step'] in chart_labels: received_data[chart_labels.index(row['step'])] = row['count']
+            cursor.execute(f"SELECT EXTRACT(HOUR FROM created_at)::INTEGER as step, COUNT(*) as count FROM ticket WHERE created_at BETWEEN %s AND %s {group_clause} GROUP BY step", params_base)
+            for row in cursor.fetchall():
+                if row['step'] is not None and 0 <= row['step'] < 24: received_data[row['step']] = row['count']
 
-        cursor.execute(f"SELECT TO_CHAR(resolved_at, 'Mon DD') as step, COUNT(*) as count FROM ticket WHERE status = 'Resolved' AND sla_breached = 0 AND resolved_at BETWEEN %s AND %s {group_clause} GROUP BY step", params_base)
-        for row in cursor.fetchall():
-            if row['step'] in chart_labels: in_sla_data[chart_labels.index(row['step'])] = row['count']
+            cursor.execute(f"SELECT EXTRACT(HOUR FROM resolved_at)::INTEGER as step, COUNT(*) as count FROM ticket WHERE status = 'Resolved' AND sla_breached = 0 AND resolved_at BETWEEN %s AND %s {group_clause} GROUP BY step", params_base)
+            for row in cursor.fetchall():
+                if row['step'] is not None and 0 <= row['step'] < 24: in_sla_data[row['step']] = row['count']
 
-        cursor.execute(f"SELECT TO_CHAR(resolved_at, 'Mon DD') as step, COUNT(*) as count FROM ticket WHERE status = 'Resolved' AND sla_breached = 1 AND resolved_at BETWEEN %s AND %s {group_clause} GROUP BY step", params_base)
-        for row in cursor.fetchall():
-            if row['step'] in chart_labels: out_sla_data[chart_labels.index(row['step'])] = row['count']
+            cursor.execute(f"SELECT EXTRACT(HOUR FROM resolved_at)::INTEGER as step, COUNT(*) as count FROM ticket WHERE status = 'Resolved' AND sla_breached = 1 AND resolved_at BETWEEN %s AND %s {group_clause} GROUP BY step", params_base)
+            for row in cursor.fetchall():
+                if row['step'] is not None and 0 <= row['step'] < 24: out_sla_data[row['step']] = row['count']
+        else:
+            for i in range(delta_days + 1):
+                day_label = (start_bound + timedelta(days=i)).strftime("%b %d")
+                chart_labels.append(day_label)
+            
+            received_data = [0] * len(chart_labels)
+            in_sla_data = [0] * len(chart_labels)
+            out_sla_data = [0] * len(chart_labels)
+
+            cursor.execute(f"SELECT TO_CHAR(created_at, 'Mon DD') as step, COUNT(*) as count FROM ticket WHERE created_at BETWEEN %s AND %s {group_clause} GROUP BY step", params_base)
+            for row in cursor.fetchall():
+                if row['step'] in chart_labels: received_data[chart_labels.index(row['step'])] = row['count']
+
+            cursor.execute(f"SELECT TO_CHAR(resolved_at, 'Mon DD') as step, COUNT(*) as count FROM ticket WHERE status = 'Resolved' AND sla_breached = 0 AND resolved_at BETWEEN %s AND %s {group_clause} GROUP BY step", params_base)
+            for row in cursor.fetchall():
+                if row['step'] in chart_labels: in_sla_data[chart_labels.index(row['step'])] = row['count']
+
+            cursor.execute(f"SELECT TO_CHAR(resolved_at, 'Mon DD') as step, COUNT(*) as count FROM ticket WHERE status = 'Resolved' AND sla_breached = 1 AND resolved_at BETWEEN %s AND %s {group_clause} GROUP BY step", params_base)
+            for row in cursor.fetchall():
+                if row['step'] in chart_labels: out_sla_data[chart_labels.index(row['step'])] = row['count']
 
     stats = {
         "received": received_count,
