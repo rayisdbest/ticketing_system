@@ -251,18 +251,21 @@ def dashboard_stats(current_user):
     min_res_time = f"{res_metrics['min_res']} min"
     max_res_time = f"{res_metrics['max_res']} min"
 
-    # Priority Charts
-    cursor.execute(f"SELECT COUNT(*) as high FROM ticket WHERE priority = 'High' AND created_at BETWEEN %s AND %s {group_clause}", params_base)
+    # Priority Charts (Excluding Resolved Tickets)
+    cursor.execute(f"SELECT COUNT(*) as high FROM ticket WHERE status != 'Resolved' AND priority = 'High' AND created_at BETWEEN %s AND %s {group_clause}", params_base)
     priority_high = cursor.fetchone()['high'] or 0
-    cursor.execute(f"SELECT COUNT(*) as medium FROM ticket WHERE priority = 'Medium' AND created_at BETWEEN %s AND %s {group_clause}", params_base)
+    
+    cursor.execute(f"SELECT COUNT(*) as medium FROM ticket WHERE status != 'Resolved' AND priority = 'Medium' AND created_at BETWEEN %s AND %s {group_clause}", params_base)
     priority_medium = cursor.fetchone()['medium'] or 0
-    cursor.execute(f"SELECT COUNT(*) as low FROM ticket WHERE priority = 'Low' AND created_at BETWEEN %s AND %s {group_clause}", params_base)
+    
+    cursor.execute(f"SELECT COUNT(*) as low FROM ticket WHERE status != 'Resolved' AND priority = 'Low' AND created_at BETWEEN %s AND %s {group_clause}", params_base)
     priority_low = cursor.fetchone()['low'] or 0
 
-    # Category Charts
-    cursor.execute(f"SELECT COUNT(*) as problem FROM ticket WHERE category ILIKE 'Problem' AND created_at BETWEEN %s AND %s {group_clause}", params_base)
+    # Category Charts (Excluding Resolved Tickets)
+    cursor.execute(f"SELECT COUNT(*) as problem FROM ticket WHERE status != 'Resolved' AND category ILIKE 'Problem' AND created_at BETWEEN %s AND %s {group_clause}", params_base)
     category_problem = cursor.fetchone()['problem'] or 0
-    cursor.execute(f"SELECT COUNT(*) as request FROM ticket WHERE category ILIKE 'Request' AND created_at BETWEEN %s AND %s {group_clause}", params_base)
+    
+    cursor.execute(f"SELECT COUNT(*) as request FROM ticket WHERE status != 'Resolved' AND category ILIKE 'Request' AND created_at BETWEEN %s AND %s {group_clause}", params_base)
     category_request = cursor.fetchone()['request'] or 0
 
     # FIX: Restored Chart Processing Logic (Handles both Tickets Overview and Agents Overview perfectly)
@@ -427,30 +430,31 @@ def submit_ticket(current_user):
         return jsonify({"error": f"An infrastructure error occurred: {str(e)}"}), 500
 
 
-@app.route('/api/tickets/resolve/<int:ticket_id>', methods=['POST'])
+@app.route('/api/tickets/<int:ticket_id>/status', methods=['POST'])
 @token_required
-def resolve_ticket(current_user, ticket_id):
-    ticket = Ticket.query.get_or_404(ticket_id)
-    ticket.status = 'Resolved'
-    ticket.resolved_at = datetime.datetime.utcnow()
+def update_ticket_status(current_user, ticket_id):
+    if current_user.get('role') not in ['ADMINISTRATOR', 'IT_AGENT']:
+        return jsonify({"error": "Unauthorized access to alter ticket status"}), 403
+        
+    data = request.json
+    new_status = data.get('status')
     
-    if ticket.created_at and (ticket.resolved_at - ticket.created_at).total_seconds() > 86400:
-        ticket.sla_breached = 1
+    if new_status not in ['Open', 'Pending', 'Resolved']:
+        return jsonify({"error": "Invalid status value provided"}), 400
+        
+    ticket = Ticket.query.get_or_404(ticket_id)
+    ticket.status = new_status
+    
+    if new_status == 'Resolved':
+        ticket.resolved_at = datetime.datetime.utcnow()
+        if ticket.created_at and (ticket.resolved_at - ticket.created_at).total_seconds() > 86400:
+            ticket.sla_breached = 1
+    else:
+        ticket.resolved_at = None
+        ticket.sla_breached = 0
         
     db.session.commit()
-    return jsonify({"message": f"Ticket #{ticket_id} marked as Resolved"})
-
-
-@app.route('/api/tickets/reopen/<int:ticket_id>', methods=['POST'])
-@token_required
-def reopen_ticket(current_user, ticket_id):
-    ticket = Ticket.query.get_or_404(ticket_id)
-    ticket.status = 'Open'
-    ticket.resolved_at = None
-    ticket.sla_breached = 0
-    db.session.commit()
-    return jsonify({"message": f"Ticket #{ticket_id} re-opened successfully"})
-
+    return jsonify({"message": f"Ticket state updated to {new_status} successfully."}), 200
 
 # ====================== AUTH ROUTES ======================
 @app.route('/request-otp', methods=['POST'])

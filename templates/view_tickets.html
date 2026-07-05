@@ -36,19 +36,24 @@
             </div>
 
             <div class="d-flex flex-column align-items-end justify-content-between h-100 ms-3" style="min-height: 90px;">
-                <span class="badge rounded-pill {% if ticket.status == 'Open' %}bg-warning text-dark{% else %}bg-success{% endif %} px-3 py-2 font-monospace">
-                    {{ ticket.status }}
-                </span>
-
-                <div class="agent-management-controls d-none mt-3">
-                    {% if ticket.status == 'Open' %}
-                        <a href="{{ url_for('resolve_ticket', ticket_id=ticket.id) }}" class="btn btn-sm btn-success px-3">
-                            <i class="fa-solid fa-check-double me-1"></i> Resolve
-                        </a>
+                <div class="status-workflow-container">
+                    {% if ticket.status == 'Resolved' %}
+                        <span class="badge rounded-pill bg-success px-3 py-2 font-monospace text-white">Resolved</span>
                     {% else %}
-                        <a href="{{ url_for('reopen_ticket', ticket_id=ticket.id) }}" class="btn btn-sm btn-outline-warning px-3">
-                            <i class="fa-solid fa-arrow-rotate-left me-1"></i> Re-open
-                        </a>
+                        <div class="agent-dropdown-wrapper d-none">
+                            <select class="form-select form-select-sm fw-bold uppercase font-monospace px-2 py-1.5 shadow-sm text-center status-dropdown-select {% if ticket.status == 'Pending' %}bg-danger text-white{% else %}bg-warning text-dark{% endif %}" 
+                                    style="width: 125px; cursor: pointer; border-radius: 50px; transition: all 0.25s ease;"
+                                    onchange="handleStatusChangeWorkflow(this, {{ ticket.id }})">
+                                <option value="Open" class="bg-white text-dark" {% if ticket.status == 'Open' %}selected{% endif %}>Open</option>
+                                <option value="Pending" class="bg-white text-dark" {% if ticket.status == 'Pending' %}selected{% endif %}>Pending</option>
+                                <option value="Resolved" class="bg-white text-dark">Resolved</option>
+                            </select>
+                        </div>
+                        <div class="user-static-badge">
+                            <span class="badge rounded-pill {% if ticket.status == 'Open' %}bg-warning text-dark{% else %}bg-danger text-white{% endif %} px-3 py-2 font-monospace">
+                                {{ ticket.status }}
+                            </span>
+                        </div>
                     {% endif %}
                 </div>
             </div>
@@ -79,9 +84,13 @@ document.addEventListener("DOMContentLoaded", function() {
     }
 
     // Unhide administrative control tools if account matches elevated access criteria
+    // Unhide administrative dropdowns and drop static placeholders for staff
     if (role === 'ADMINISTRATOR' || role === 'IT_AGENT') {
-        document.querySelectorAll('.agent-management-controls').forEach(el => {
+        document.querySelectorAll('.agent-dropdown-wrapper').forEach(el => {
             el.classList.remove('d-none');
+        });
+        document.querySelectorAll('.user-static-badge').forEach(el => {
+            el.remove();
         });
     }
 
@@ -105,5 +114,55 @@ document.addEventListener("DOMContentLoaded", function() {
         }
     }
 });
+async function handleStatusChangeWorkflow(selectElement, ticketId) {
+    const chosenStatus = selectElement.value;
+    const token = localStorage.getItem('token');
+    
+    // Dynamically change colors instantly for pending vs open status states
+    if (chosenStatus === 'Pending') {
+        selectElement.className = "form-select form-select-sm fw-bold uppercase font-monospace px-2 py-1.5 shadow-sm text-center status-dropdown-select bg-danger text-white";
+    } else if (chosenStatus === 'Open') {
+        selectElement.className = "form-select form-select-sm fw-bold uppercase font-monospace px-2 py-1.5 shadow-sm text-center status-dropdown-select bg-warning text-dark";
+    }
+
+    try {
+        const response = await fetch(`/api/tickets/${ticketId}/status`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ status: chosenStatus })
+        });
+        
+        if (!response.ok) {
+            const err = await response.json();
+            alert("Error: " + (err.error || "Failed to update status."));
+            return;
+        }
+        
+        // If ticket is resolved, turn into a fixed badge and move card to the bottom
+        if (chosenStatus === 'Resolved') {
+            const container = selectElement.parentElement;
+            container.innerHTML = `<span class="badge rounded-pill bg-success px-3 py-2 font-monospace text-white">Resolved</span>`;
+            
+            const cardNode = container.closest('.ticket-card-node');
+            const listContainer = document.getElementById('tickets-container');
+            
+            if (cardNode && listContainer) {
+                cardNode.style.opacity = '0.4';
+                cardNode.style.transition = 'all 0.3s ease';
+                
+                setTimeout(() => {
+                    listContainer.appendChild(cardNode); // Appending pushing it automatically to the bottom row
+                    cardNode.style.opacity = '1';
+                }, 300);
+            }
+        }
+    } catch (e) {
+        console.error(e);
+        alert("Network failure connection error updating ticket state.");
+    }
+}
 </script>
 {% endblock %}
