@@ -50,9 +50,8 @@
     <div class="flex items-center gap-4">
       <h1 class="text-2xl font-bold text-slate-700">Dashboard</h1>
       <div class="flex items-center gap-2">
-        <select class="border border-slate-300 text-slate-600 bg-white px-3 py-1.5 rounded shadow-sm text-sm outline-none">
+        <select id="groupFilter" onchange="fetchDashboardStats()" class="border border-slate-300 text-slate-600 bg-white px-3 py-1.5 rounded shadow-sm text-sm outline-none">
           <option value="All Groups">All Groups</option>
-          <option value="Accounts">Accounts</option>
           <option value="PD">PD</option>
           <option value="sales">Sales</option>
           <option value="Folding">Folding</option>
@@ -233,48 +232,50 @@ function updateChartTypeIcons() {
 }
 
 async function fetchDashboardStats() {
-    try {
-        const token = localStorage.getItem('token');
-        const user = JSON.parse(localStorage.getItem('user') || '{}');
-        if(user.username) document.getElementById('nav-username').textContent = user.username;
+  const token = localStorage.getItem('token');
+  
+  // Capture values from date controls and the new group element
+  const startEl = document.getElementById('startDateInput');
+  const endEl = document.getElementById('endDateInput');
+  const groupEl = document.getElementById('groupFilter');
 
-        const startDate = document.getElementById('startDate').value;
-        const endDate = document.getElementById('endDate').value;
-        
-        const url = `/api/dashboard/stats?start_date=${startDate}&end_date=${endDate}&overview=${currentOverview}`;
-        const response = await fetch(url, {
-            headers: { 'Authorization': token ? `Bearer ${token}` : '' }
-        });
-        
-        if (!response.ok) {
-            if (response.status === 401) logout();
-            throw new Error("Failed to load dashboard data");
-        }
-        
-        const data = await response.json();
-        dashboardDataCache = data; 
+  let url = '/api/dashboard/stats?';
+  if (startEl && startEl.value) url += `start_date=${startEl.value}&`;
+  if (endEl && endEl.value) url += `end_date=${endEl.value}&`;
+  if (groupEl && groupEl.value) url += `group=${encodeURIComponent(groupEl.value)}`;
 
-        document.getElementById('stat-received_top').innerText = data.received || 0;
-        document.getElementById('stat-resolved_top').innerText = data.resolved || 0;
-        document.getElementById('stat-unresolved').innerText = data.unresolved || 0;
-        document.getElementById('stat-unassigned').innerText = data.unassigned || 0;
-        document.getElementById('stat-pending').innerText = data.pending || 0;
-        document.getElementById('stat-overdue').innerText = data.overdue || 0;
-        document.getElementById('stat-due_today').innerText = data.due_today || 0;
-        document.getElementById('stat-due_tomorrow').innerText = data.due_tomorrow || 0;
+  try {
+    const res = await fetch(url, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!res.ok) return;
+    const data = await res.json();
 
-        document.getElementById('chart-val-received').innerText = data.received || 0;
-        document.getElementById('chart-val-resolved_in_sla').innerText = data.resolved_in_sla || 0;
-        document.getElementById('chart-val-resolved_outside_sla').innerText = data.resolved_outside_sla || 0;
+    // Map counts to metrics indicators
+    document.getElementById('totalReceived').innerText = data.received;
+    document.getElementById('totalResolved').innerText = data.resolved;
+    document.getElementById('unresolvedTickets').innerText = data.unresolved;
+    document.getElementById('unassignedTickets').innerText = data.unassigned;
+    document.getElementById('pendingTickets').innerText = data.pending;
+    document.getElementById('overdueTickets').innerText = data.overdue;
+    document.getElementById('dueToday').innerText = data.due_today;
+    document.getElementById('dueTomorrow').innerText = data.due_tomorrow;
+    
+    // SLA Boxes mapping 
+    document.getElementById('inSlaCount').innerText = data.resolved_in_sla;
+    document.getElementById('outSlaCount').innerText = data.resolved_outside_sla;
 
-        document.getElementById('avgRes').innerText = data.avg_resolution_time || "0 min";
-        document.getElementById('minRes').innerText = data.min_resolution_time || "0 min";
-        document.getElementById('maxRes').innerText = data.max_resolution_time || "0 min";
+    // Live Resolution calculation metrics display elements mapping
+    if(document.getElementById('avgRes')) document.getElementById('avgRes').innerText = data.avg_resolution_time;
+    if(document.getElementById('minRes')) document.getElementById('minRes').innerText = data.min_resolution_time;
+    if(document.getElementById('maxRes')) document.getElementById('maxRes').innerText = data.max_resolution_time;
 
-        renderChart(data);
-    } catch (error) {
-        console.error("Dashboard engine link fault:", error);
-    }
+    // Re-draw chart nodes layout structure smoothly
+    renderMixedChart(data.chart_labels, data.chart_data.received, data.chart_data.resolved_in_sla, data.chart_data.resolved_outside_sla);
+
+  } catch (err) {
+    console.error("Error updating filtering statistics:", err);
+  }
 }
 
 function renderChart(data) {

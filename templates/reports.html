@@ -179,15 +179,29 @@
             });
 
             // --- 2. Category Chart Update (Estimating Problem vs Request splits) ---
+            // --- 2. Category Chart Update (Real Dynamic Metrics) ---
             const catCtx = document.getElementById('categoryChart').getContext('2d');
             if (categoryChart) categoryChart.destroy();
             categoryChart = new Chart(catCtx, {
                 type: 'bar',
                 data: {
                     labels: ['Problem', 'Request'],
-                    datasets: [{ data: [data.unresolved || 0, data.resolved || 0], backgroundColor: createGradient(catCtx, '#60a5fa', '#3b82f6'), borderRadius: 6, barThickness: 45 }]
+                    datasets: [{ 
+                        data: [
+                            data.category_problem || 0, 
+                            data.category_request || 0
+                        ], 
+                        backgroundColor: createGradient(catCtx, '#06b6d4', '#0891b2'), 
+                        borderRadius: 6, 
+                        barThickness: 45 
+                    }]
                 },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: xAxisScales, y: yAxisScales } }
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false, 
+                    plugins: { legend: { display: false } }, 
+                    scales: { x: xAxisScales, y: yAxisScales } 
+                }
             });
 
             // --- 3. Priority Chart Update (Real Priority Level Metrics) ---

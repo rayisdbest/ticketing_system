@@ -21,7 +21,7 @@
                     <div class="col-6 col-md-3"><small class="text-uppercase text-muted d-block font-monospace" style="font-size:0.75rem;">Category</small><span class="fw-semibold text-secondary">{{ ticket.category }}</span></div>
                     <div class="col-6 col-md-3"><small class="text-uppercase text-muted d-block font-monospace" style="font-size:0.75rem;">Priority</small><span class="fw-semibold text-secondary">{{ ticket.priority }}</span></div>
                     <div class="col-6 col-md-3"><small class="text-uppercase text-muted d-block font-monospace" style="font-size:0.75rem;">Group</small><span class="fw-semibold text-secondary">{{ ticket.group }}</span></div>
-                    <div class="col-6 col-md-3"><small class="text-uppercase text-muted d-block font-monospace" style="font-size:0.75rem;">Agent Account</small><span class="fw-semibold text-secondary">{{ ticket.assigned_agent or 'Unassigned' }}</span></div>
+                    <div class="col-6 col-md-3"><small class="text-uppercase text-muted d-block font-monospace" style="font-size:0.75rem;">Agent Account</small><span class="fw-semibold text-secondary">{{ ticket.assigned_agent}}</span></div>
                 </div>
 
                 {% if ticket.attachment_filename %}
