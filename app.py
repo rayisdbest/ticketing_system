@@ -334,6 +334,8 @@ def submit_ticket(current_user):
         priority = request.form.get('priority')
         group = request.form.get('group', 'General')
 
+        assigned_agent = request.form.get('agent')
+
         if not all([subject, category, priority]):
             return jsonify({"error": "Missing mandatory ticket form fields"}), 400
 
@@ -351,7 +353,8 @@ def submit_ticket(current_user):
             category=category,
             priority=priority,
             group=group,
-            attachment_filename=filename
+            attachment_filename=filename,
+            assigned_agent=assigned_agent
         )
         db.session.add(new_ticket)
         db.session.commit()
