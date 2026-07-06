@@ -5,13 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Helpdesk | Nagaria Textiles</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <script>
       (function() {
         const token = localStorage.getItem('token');
         const user = JSON.parse(localStorage.getItem('user') || '{}');
         
-        // Block 1: Basic validation check to verify an active session token exists
         if (!token || !user.role) {
            alert("Access Denied: Please log in to access the helpdesk portal.");
            window.location.href = "login.html";
@@ -21,12 +22,11 @@
     </script>
 
     <style>
-        :root { --company-blue: #008eb5; --bg-light: #f4f7f9; }
+        :root { --company-blue: #00a3d1; --bg-light: #f4f7f9; }
         body { background-color: var(--bg-light); }
         
-        /* Navbar styling */
-        .navbar { background-color: var(--company-blue) !important; padding: 0.75rem 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .navbar-brand { font-weight: 600; }
+        /* Navbar styling for dashboard consistency */
+        .navbar-custom { background-color: #00a3d1 !important; padding: 0.75rem 1.5rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         
         /* Dashboard Container */
         .container { max-width: 1100px; }
@@ -54,73 +54,42 @@
         .detail-col strong { display: block; color: #999; font-size: 0.7em; text-transform: uppercase; margin-bottom: 2px; }
     </style>
 </head>
-<body>
-
-    <nav class="navbar navbar-expand-lg navbar-dark mb-4">
-        <div class="container">
-            <a class="navbar-brand d-flex align-items-center gap-2" href="#">
-                <span>raiseaticket</span> <span class="fw-light opacity-75">| Nagaria Textiles</span>
-            </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse justify-content-end" id="navbarNav">
-                <ul class="navbar-nav align-items-center gap-2">
-                    <li id="nav-dash-link" class="nav-item d-none">
-                        <a class="nav-link text-white font-weight-bold" href="Admin_dashboard.html">Dashboard</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link text-white" href="submit_ticket.html">Raise a Ticket</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link text-white" href="view_tickets.html">Tickets</a>
-                    </li>
-                    <li id="nav-rep-link" class="nav-item d-none">
-                        <a class="nav-link text-white" href="reports.html">Reports</a>
-                    </li>
-                    <li class="nav-item ms-2">
-                        <span class="text-white opacity-50">|</span>
-                    </li>
-                    <li class="nav-item">
-                        <span id="layout-username-display" class="nav-link text-white-50 fw-medium">Loading User...</span>
-                    </li>
-                    <li class="nav-item">
-                        <button onclick="layoutLogout()" class="btn btn-sm btn-outline-light ms-2 px-3 py-1" style="border-radius:20px;">
-                            Log Out
-                        </button>
-                    </li>
-                </ul>
+<body class="m-0 p-0"> <div class="w-full">
+        <nav class="bg-[#00a3d1] text-white px-6 py-3 flex items-center justify-between shadow-md">
+            <div class="flex items-center space-x-3 text-xl font-semibold tracking-wide">
+                <i class="fa-solid fa-cloud"></i>
+                <span>Nagaria Textiles</span>
             </div>
-        </div>
-    </nav>
-
-    <div class="container mb-5">
-        {% block content %}{% endblock %}
+            
+            <div class="flex items-center space-x-1 text-sm font-medium">
+                <button class="p-2 hover:bg-[#008fba] rounded-md transition"><i class="fa-solid fa-magnifying-glass"></i></button>
+                <a href="Admin_dashboard.html" class="nav-link px-3 py-2 rounded-md transition"><i class="fa-solid fa-house mr-1"></i> Dashboard</a>
+                <a href="submit_ticket.html" class="nav-link px-3 py-2 rounded-md transition"><i class="fa-solid fa-plus mr-1"></i> Raise a ticket</a>
+                <a href="view_tickets.html" class="nav-link px-3 py-2 rounded-md transition"><i class="fa-solid fa-ticket mr-1"></i> Tickets</a>
+                <a href="reports.html" class="nav-link px-3 py-2 rounded-md transition"><i class="fa-solid fa-chart-bar mr-1"></i> Reports</a>
+                <button class="px-3 py-2 hover:bg-[#008fba] rounded-md transition"><i class="fa-solid fa-gear mr-1"></i> Settings</button>
+                <span class="text-slate-300 mx-2">|</span>
+                <span id="nav-username" class="px-3 py-2 rounded-md font-semibold uppercase tracking-wider">Loading...</span>
+                <button onclick="logout()" class="w-8 h-8 rounded-full bg-[#008fba] flex items-center justify-center border border-slate-200 hover:scale-105 hover:text-red-200 transition">
+                    <i class="fa-solid fa-right-from-bracket text-sm"></i>
+                </button>
+            </div>
+        </nav>
     </div>
+</body>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+
+    {% block content %}{% endblock %}
+
     <script>
         document.addEventListener("DOMContentLoaded", function() {
             const user = JSON.parse(localStorage.getItem('user') || '{}');
-            
-            // Populate account node tracking headers safely
             if (user.username) {
-                document.getElementById('layout-username-display').textContent = `${user.username} (${user.role})`;
-            }
-
-            // Unhide authorized administrator navigation metrics paths dynamically 
-            if (user.role === "ADMINISTRATOR") {
-                const dashLink = document.getElementById('nav-dash-link');
-                const repLink = document.getElementById('nav-rep-link');
-                if(dashLink) dashLink.classList.remove('d-none');
-                if(repLink) repLink.classList.remove('d-none');
+                document.getElementById('nav-username').textContent = `${user.username} (${user.role})`;
             }
         });
-
-        function layoutLogout() {
-            localStorage.clear();
-            window.location.href = "login.html";
-        }
+        function logout() { localStorage.clear(); window.location.href = "login.html"; }
     </script>
 </body>
 </html>

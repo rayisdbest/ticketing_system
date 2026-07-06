@@ -403,6 +403,8 @@ def submit_ticket(current_user):
         group = request.form.get('group', 'General')
         assigned_agent = request.form.get('assigned_agent')
 
+        assigned_agent = request.form.get('agent')
+
         if not all([subject, category, priority]):
             return jsonify({"error": "Missing mandatory ticket form fields"}), 400
 

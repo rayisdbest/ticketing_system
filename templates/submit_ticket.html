@@ -9,14 +9,30 @@
   })();
 </script>
 
-<div class="card shadow-sm mt-4">
-    <div class="card-header text-white" style="background-color: #008eb5;">
-        <h5 class="mb-0"><i class="fa-solid fa-pen-to-square me-2"></i>Raise a Support Ticket</h5>
+<style>
+    /* Force body to ignore default margins and ensure nav is flush */
+    body { margin: 0; padding: 0; }
+    
+    /* Ensure the nav links are perfectly identical across all pages */
+    .nav-link {
+        display: flex;
+        align-items: center;
+        padding-left: 0.75rem;
+        padding-right: 0.75rem;
+        padding-top: 0.5rem;
+        padding-bottom: 0.5rem;
+    }
+</style>
+<div class="mx-auto mt-12" style="max-width: 850px; width: 100%;"> 
+
+    <div class="bg-[#00a3d1] text-white p-3 rounded-t-lg font-semibold shadow-sm">
+        <i class="fa-solid fa-pen-to-square mr-2"></i> Raise a Support Ticket
     </div>
-    <div class="card-body p-4">
-        <form id="ticketForm" enctype="multipart/form-data">
-            <div class="row g-4">
-                <div class="col-md-4 border-end">
+
+    <div class="bg-white p-6 border border-slate-200 rounded-b-lg shadow-sm">
+        <form method="POST" enctype="multipart/form-data">
+            <div class="row">
+                <div class="col-md-4">
                     <div class="mb-3">
                         <label class="form-label fw-bold text-muted small text-uppercase">Category</label>
                         <select name="category" class="form-select">
@@ -80,8 +96,8 @@
         </form>
     </div>
 </div>
-
 <script>
+
 document.getElementById('ticketForm').addEventListener('submit', async function(e) {
     e.preventDefault(); // Stop standard browser page-reload action
     
