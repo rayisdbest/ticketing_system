@@ -55,7 +55,7 @@ class Ticket(db.Model):
     priority = db.Column(db.String(20), nullable=False)
     group = db.Column(db.String(50), default='General')
     status = db.Column(db.String(20), default='Open')
-    assigned_agent = db.Column(db.String(50), nullable=True)
+    assigned_agent = db.Column(db.String(50), nullable=False)
     sla_breached = db.Column(db.Integer, default=0) 
     created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
     resolved_at = db.Column(db.DateTime, nullable=True)
@@ -401,6 +401,7 @@ def submit_ticket(current_user):
         category = request.form.get('category')
         priority = request.form.get('priority')
         group = request.form.get('group', 'General')
+        assigned_agent = request.form.get('assigned_agent')
 
         if not all([subject, category, priority]):
             return jsonify({"error": "Missing mandatory ticket form fields"}), 400
@@ -419,7 +420,8 @@ def submit_ticket(current_user):
             category=category,
             priority=priority,
             group=group,
-            attachment_filename=filename
+            attachment_filename=filename,
+            assigned_agent=assigned_agent
         )
         db.session.add(new_ticket)
         db.session.commit()
