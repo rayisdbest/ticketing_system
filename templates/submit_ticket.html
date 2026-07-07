@@ -30,9 +30,23 @@
     </div>
 
     <div class="bg-white p-6 border border-slate-200 rounded-b-lg shadow-sm">
-        <form method="POST" enctype="multipart/form-data">
+        <form id="ticketForm" method="POST" enctype="multipart/form-data">
             <div class="row">
                 <div class="col-md-4">
+                    
+                    <div id="adminProxyContainer" style="display: none;" class="mb-4 p-3 border rounded bg-light shadow-sm">
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="ticketByRequestCheck">
+                            <label class="form-check-label fw-bold text-muted small text-uppercase" for="ticketByRequestCheck" style="cursor: pointer;">
+                                Ticket By Request
+                            </label>
+                        </div>
+                        <div id="requestedForDiv" style="display: none; margin-top: 10px;">
+                            <label class="form-label fw-bold text-muted small text-uppercase">Requested For (Username) *</label>
+                            <input type="text" name="requested_for" id="requested_for_input" class="form-control" placeholder="Enter user's name">
+                        </div>
+                    </div>
+
                     <div class="mb-3">
                         <label class="form-label fw-bold text-muted small text-uppercase">Category</label>
                         <select name="category" class="form-select">
@@ -96,8 +110,46 @@
         </form>
     </div>
 </div>
-<script>
 
+<script>
+// Fail-safe Token Decoder to find user roles directly from the session token
+try {
+    const token = localStorage.getItem('token');
+    if (token) {
+        // Decode the middle payload section of the JWT token
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
+            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+
+        const tokenData = JSON.parse(jsonPayload);
+        
+        // Check if the decoded role matches ADMINISTRATOR
+        if (tokenData.role === 'ADMINISTRATOR') {
+            document.getElementById('adminProxyContainer').style.display = 'block';
+        }
+    }
+} catch (e) {
+    console.error("Error parsing security token role:", e);
+}
+
+// Toggle username prompt visibility and dynamic field requirements
+document.getElementById('ticketByRequestCheck').addEventListener('change', function() {
+    const inputDiv = document.getElementById('requestedForDiv');
+    const inputField = document.getElementById('requested_for_input');
+    
+    if (this.checked) {
+        inputDiv.style.display = 'block';
+        inputField.setAttribute('required', 'true');
+    } else {
+        inputDiv.style.display = 'none';
+        inputField.removeAttribute('required');
+        inputField.value = '';
+    }
+});
+
+// Network Transport Layer: Ships standard fields alongside admin override values
 document.getElementById('ticketForm').addEventListener('submit', async function(e) {
     e.preventDefault(); // Stop standard browser page-reload action
     

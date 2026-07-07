@@ -403,7 +403,14 @@ def submit_ticket(current_user):
         group = request.form.get('group', 'General')
         assigned_agent = request.form.get('assigned_agent')
 
-        assigned_agent = request.form.get('agent')
+        # --- NEW: Check for Admin Override ---
+        requested_for = request.form.get('requested_for')
+        actual_requester = current_user.get('username')
+        
+        # Only allow the name change if the user is an ADMINISTRATOR
+        if requested_for and current_user.get('role') == 'ADMINISTRATOR':
+            actual_requester = requested_for
+        # -------------------------------------
 
         if not all([subject, category, priority]):
             return jsonify({"error": "Missing mandatory ticket form fields"}), 400
@@ -415,7 +422,7 @@ def submit_ticket(current_user):
             file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
         
         new_ticket = Ticket(
-            requester_name=current_user.get('username'),
+            requester_name=actual_requester, # <-- Updated to use our new variable
             requester_email=current_user.get('email'),
             subject=subject,
             description=description or '',
@@ -432,8 +439,7 @@ def submit_ticket(current_user):
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": f"An infrastructure error occurred: {str(e)}"}), 500
-
-
+    
 @app.route('/api/tickets/<int:ticket_id>/status', methods=['POST'])
 @token_required
 def update_ticket_status(current_user, ticket_id):
